@@ -1,6 +1,12 @@
 /**
  * scripts/generate-quote-advanced.js
- * (amended for formatted dates + clickable link support in template)
+ * Advanced generator with:
+ * - full <iframe> for 3D viewer (embed endpoint, unencoded model list)
+ * - path tokens for template <img> (doors, material_1)
+ * - full <figure><img> blocks for material_2 and handle blocks
+ * - URL-encoded HTML attribute values via toUrl() (spaces -> %20, etc.)
+ * - preflight on unencoded filesystem paths
+ * - formatted dates (DD Mon YYYY)
  */
 
 import 'dotenv/config';
@@ -18,6 +24,12 @@ function assertEnv(name) { const v = process.env[name]; if (!v) { console.error(
 function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
 function isRelative(p) { return typeof p === 'string' && !p.startsWith('http') && !p.startsWith('/'); }
+
+// Encode only for HTML attribute output (spaces -> %20, etc).
+// Keep preflight using unencoded filesystem paths.
+function toUrl(p) {
+  return p ? encodeURI(p) : '';
+}
 
 // ----- date helpers (international short format "10 Feb 2026") -----
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -45,12 +57,15 @@ function buildRawUrl(owner, repo, branch, relPath) {
 // ------------------------- 3D iframe (embed endpoint, no encoding of list) -------------------------
 function build3DViewerIframe(owner, repo, branch, filePaths) {
   if (!Array.isArray(filePaths) || filePaths.length === 0) return '';
-  const urls = filePaths.map(p => buildRawUrl(owner, repo, branch, p));
+
+  const urls = filePaths.map(p => buildRawUrl(owner, repo, branch, p)); // NOT encoded as a list
   const modelList = urls.join(',');
+
   const camera =
     '$camera=8742.95150,3777.59723,-3746.25877,' +
     '1172.74561,1294.75024,1252.00024,' +
     '0.00000,1.00000,0.00000,45.00000';
+
   const settings =
     '$projectionmode=perspective' +
     '$envsettings=fishermans_bastion,off' +
@@ -58,20 +73,26 @@ function build3DViewerIframe(owner, repo, branch, filePaths) {
     '$defaultcolor=200,200,200' +
     '$defaultlinecolor=100,100,100' +
     '$edgesettings=off,0,0,0,1';
-  return `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}</iframe>`;
+
+  const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
+
+  // Return a full iframe element (absolute URL, so <base href="/"> won’t affect it)
+  return `<iframe src="${src}" allowfullscreen></iframe>`;
 }
 
 // ------------------------- auto-discover viewer files -------------------------
 async function autoDiscoverViewerFiles(leadId) {
   const base = path.resolve(process.cwd(), 'assets', 'leads', String(leadId), 'viewer');
   const found = [];
+
   async function walk(dir) {
     let entries = [];
     try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const abs = path.join(dir, e.name);
-      if (e.isDirectory()) { await walk(abs); }
-      else {
+      if (e.isDirectory()) {
+        await walk(abs);
+      } else {
         const ext = path.extname(e.name).toLowerCase();
         if (ext === '.3ds' || ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
           found.push(toPosix(path.relative(process.cwd(), abs)));
@@ -133,7 +154,7 @@ async function getNextRevision(outDir, leadId) {
   }
 }
 
-// ------------------------- Advanced preflight (unchanged) -------------------------
+// ------------------------- Advanced preflight -------------------------
 const warnings = []; const errors = [];
 function warn(msg){ console.warn(`⚠️  ${msg}`); warnings.push(msg); }
 function err (msg){ console.error(`❌ ${msg}`); errors.push(msg); }
@@ -143,8 +164,8 @@ async function sniffImageType(relPath){
   try {
     const fh = await fs.open(relPath, 'r'); const buf = Buffer.alloc(8);
     await fh.read(buf, 0, 8, 0); await fh.close();
-    if (buf[0]===0x89&&buf[1]===0x50&&buf[2]===0x4E&&buf[3]===0x47) return 'png';
-    if (buf[0]===0xFF&&buf[1]===0xD8) return 'jpeg';
+    if (buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4E && buf[3]===0x47) return 'png';
+    if (buf[0]===0xFF && buf[1]===0xD8) return 'jpeg';
     return 'unknown';
   } catch { return 'unknown'; }
 }
@@ -167,8 +188,12 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
     viewerFiles.forEach(f=>{ suggestNoSpaces(f,'3D file'); suggestSafeBasename(f,'3D file'); });
   }
 
-  if (errors.length){ console.error(`\n❌ Preflight failed with ${errors.length} error(s) and ${warnings.length} warning(s).`);
-    errors.forEach(e=>console.error(`   • ${e}`)); warnings.forEach(w=>console.warn(`   • ${w}`)); process.exit(1); }
+  if (errors.length){
+    console.error(`\n❌ Preflight failed with ${errors.length} error(s) and ${warnings.length} warning(s).`);
+    errors.forEach(e=>console.error(`   • ${e}`));
+    warnings.forEach(w=>console.warn(`   • ${w}`));
+    process.exit(1);
+  }
   console.log(`✔ Preflight passed with ${warnings.length} warning(s).`);
   if (warnings.length && hasFlag('--strict')) { console.error('❌ --strict mode: warnings considered fatal.'); process.exit(1); }
 }
@@ -191,7 +216,10 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
   const SKIP_KOMMO = hasFlag('--skip-kommo');
   const STRICT     = hasFlag('--strict');
 
-  if (!dataFile){ console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>.json [--tpl templates/quote.html.tpl] [--out quotes] [--strict] [--skip-kommo]'); process.exit(1); }
+  if (!dataFile){
+    console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>.json [--tpl templates/quote.html.tpl] [--out quotes] [--strict] [--skip-kommo]');
+    process.exit(1);
+  }
 
   const data   = JSON.parse(await fs.readFile(path.resolve(dataFile), 'utf8'));
   const leadId = String(data.leadId);
@@ -220,30 +248,31 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
   const vat      = subtotal * vatRate;
   const total    = subtotal + vat;
 
-  // Paths for template tokens (plain paths, template provides <img>)
+  // Paths for template tokens (plain paths for template <img>, encoded for HTML)
   const pathFrom = (obj) => (obj?.thumb || obj?.full || '').replace(/^\//,'');
 
-  const IMAGE_DOORSON_THUMB  = pathFrom(data.images?.doorsOn);
-  const IMAGE_DOORSOFF_THUMB = pathFrom(data.images?.doorsOff);
+  // Main images (template wraps these in <img>)
+  const IMAGE_DOORSON_THUMB  = toUrl(pathFrom(data.images?.doorsOn));
+  const IMAGE_DOORSOFF_THUMB = toUrl(pathFrom(data.images?.doorsOff));
 
-  // Materials & handles (as before)
+  // Materials & handles
   let MATERIAL_1_THUMB = '';
   let MATERIAL_1_NAME  = '';
   let MATERIAL_1_NOTES = '';
   let MATERIAL_2_BLOCK = '';
 
-  if (Array.isArray(data.materials) && data.materials.length>0){
+  if (Array.isArray(data.materials) && data.materials.length > 0) {
     const m0 = data.materials[0];
-    MATERIAL_1_THUMB = pathFrom(m0);
+    MATERIAL_1_THUMB = toUrl(pathFrom(m0));
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
-    if (data.materials[1]){
+    if (data.materials[1]) {
       const m1 = data.materials[1];
-      const m1Path = pathFrom(m1);
+      const m1Path = toUrl(pathFrom(m1));
       MATERIAL_2_BLOCK = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${m1Path}" data-full="${m1Path}" alt="${m1?.name||''}"/>
+  <img class="swatch-thumb" src="${m1Path}" data-full="${m1Path}" alt="${m1?.name || ''}"/>
   <figcaption class="swatch-caption">
     <strong>${m1?.name || ''}</strong><br/>
     <span>${m1?.notes || ''}</span>
@@ -254,23 +283,25 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
 
   let HANDLE_1_BLOCK = '';
   let HANDLE_2_BLOCK = '';
-  if (Array.isArray(data.handles) && data.handles.length>0){
-    const h0Path = pathFrom(data.handles[0]);
+
+  if (Array.isArray(data.handles) && data.handles.length > 0) {
     const h0 = data.handles[0];
+    const h0Path = toUrl(pathFrom(h0));
     HANDLE_1_BLOCK = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${h0Path}" data-full="${h0Path}" alt="${h0?.name||''}"/>
+  <img class="swatch-thumb" src="${h0Path}" data-full="${h0Path}" alt="${h0?.name || ''}"/>
   <figcaption class="swatch-caption">
     <strong>${h0?.name || ''}</strong><br/>
     <span>${h0?.finish || ''}</span>
   </figcaption>
 </figure>`;
-    if (data.handles[1]){
-      const h1Path = pathFrom(data.handles[1]);
+
+    if (data.handles[1]) {
       const h1 = data.handles[1];
+      const h1Path = toUrl(pathFrom(h1));
       HANDLE_2_BLOCK = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${h1Path}" data-full="${h1Path}" alt="${h1?.name||''}"/>
+  <img class="swatch-thumb" src="${h1Path}" data-full="${h1Path}" alt="${h1?.name || ''}"/>
   <figcaption class="swatch-caption">
     <strong>${h1?.name || ''}</strong><br/>
     <span>${h1?.finish || ''}</span>
@@ -279,11 +310,11 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
     }
   }
 
-  // Preflight
+  // Preflight (uses raw paths, not URL-encoded)
   await preflight({
     logoRel: 'assets/logo.png',
-    doorsOnThumb:  IMAGE_DOORSON_THUMB,
-    doorsOffThumb: IMAGE_DOORSOFF_THUMB,
+    doorsOnThumb:  pathFrom(data.images?.doorsOn),
+    doorsOffThumb: pathFrom(data.images?.doorsOff),
     materials: (data.materials || []).map(m => ({ thumb: pathFrom(m) })),
     handles:   (data.handles   || []).map(h => ({ thumb: pathFrom(h) })),
     viewerFiles
@@ -353,12 +384,15 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
   console.log(`✔ Generated: ${outPath}`);
   console.log(`✔ Public URL: ${publicUrl}`);
 
-  if (!hasFlag('--skip-kommo')) {
+  if (!SKIP_KOMMO) {
     await kommoPatchLatestUrl(KOMMO_SUB, KOMMO_TOK, leadId, publicUrl, LATEST_ID);
     console.log('✔ Kommo Latest Quote URL updated.');
   } else {
     console.log('ℹ Kommo PATCH skipped (--skip-kommo).');
   }
 
-  if (STRICT && warnings.length) { console.error('❌ --strict mode: finishing with warnings is not allowed.'); process.exit(1); }
+  if (STRICT && warnings.length) {
+    console.error('❌ --strict mode: finishing with warnings is not allowed.');
+    process.exit(1);
+  }
 })().catch(e => { console.error(e); process.exit(1); });
