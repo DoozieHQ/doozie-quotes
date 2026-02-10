@@ -3,15 +3,16 @@
  * ----------------------------------
  * - Builds a versioned quote HTML page from /data/quotes/<LEAD_ID>.json
  * - Inserts client data from Kommo (lead + primary contact)
- * - Auto-discovers 3D (.3ds + .jpg/.jpeg) under assets/leads/<LEAD_ID>/viewer/
- * - Uses 3dviewer.net *embed* endpoint so iframe loads
- * - Emits <img> elements for main images & swatches (with data-full for lightbox)
+ * - Auto-discovers 3D (.3ds + .jpg/.jpeg/.png) under assets/leads/<LEAD_ID>/viewer/
+ * - Uses 3dviewer.net *embed* endpoint so iframe loads (unencoded model list)
+ * - Emits PATH STRINGS for image tokens the template wraps in <img> (doors/material_1)
+ * - Emits full <figure> blocks for MATERIAL_2_BLOCK and HANDLE_*_BLOCK
  * - Advanced preflight:
  *     • verifies existence of referenced files
- *     • warns on spaces/disallowed chars in viewer files
+ *     • warns on spaces/disallowed chars in 3D files
  *     • sniff file types (png/jpeg) by magic bytes
  *     • optional strict mode (--strict) fails on warnings
- *     • validates at least one .3ds model present
+ *     • validates at least one .3ds model present when viewer is expected
  * - Writes /quotes/<LEAD_ID>_vN.html
  * - PATCHes Kommo Latest Quote URL (unless --skip-kommo)
  *
@@ -19,11 +20,8 @@
  *   node scripts/generate-quote-advanced.js \
  *     --data data/quotes/21018810.json \
  *     --tpl templates/quote.html.tpl \
- *     --out quotes
- *
- * Optional flags:
- *   --strict       → treat warnings as errors (fail build)
- *   --skip-kommo   → skip Kommo PATCH for testing
+ *     --out quotes \
+ *     [--strict] [--skip-kommo]
  */
 
 import 'dotenv/config';
@@ -58,23 +56,23 @@ function buildRawUrl(owner, repo, branch, relPath) {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-// ------------------------- 3D iframe (embed endpoint) -------------------------
+// ------------------------- 3D iframe (embed endpoint, no encoding of list) -------------------------
 function build3DViewerIframe(owner, repo, branch, filePaths) {
   if (!Array.isArray(filePaths) || filePaths.length === 0) return '';
 
-  // 1. Build RAW GitHub URLs without encoding
+  // Build RAW GitHub URLs (NOT encoded)
   const urls = filePaths.map(p => buildRawUrl(owner, repo, branch, p));
 
-  // 2. Join into comma-separated list (NOT encoded)
+  // Join using commas, with NO encodeURIComponent
   const modelList = urls.join(',');
 
-  // 3. Fixed camera settings (Option A: stable defaults)
+  // Fixed, known-good camera (Option A)
   const camera =
     '$camera=8742.95150,3777.59723,-3746.25877,' +
     '1172.74561,1294.75024,1252.00024,' +
     '0.00000,1.00000,0.00000,45.00000';
 
-  // 4. Additional recommended viewer settings
+  // Additional viewer settings
   const settings =
     '$projectionmode=perspective' +
     '$envsettings=fishermans_bastion,off' +
@@ -140,7 +138,7 @@ async function kommoPatchLatestUrl(sub, tok, leadId, url, fieldId) {
 function replaceTokens(tpl, map) {
   let out = tpl;
   for (const [k, v] of Object.entries(map)) {
-    out = out.replaceAll(`{{${k}}}`, v ?? '');
+    out = out.replaceAll(`{{${k}}}`, v == null ? '' : String(v));
   }
   return out;
 }
@@ -173,37 +171,30 @@ function err(msg)  { console.error(`❌ ${msg}`); errors.push(msg); }
 
 async function fileExists(relPath) {
   if (!relPath) return false;
-  try {
-    await fs.access(relPath);
-    return true;
-  } catch { return false; }
+  try { await fs.access(relPath); return true; }
+  catch { return false; }
 }
 
 async function sniffImageType(relPath) {
-  // Minimal magic number sniff for JPEG/PNG
   try {
     const fh = await fs.open(relPath, 'r');
     const buf = Buffer.alloc(8);
     await fh.read(buf, 0, 8, 0);
     await fh.close();
-    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    // PNG: 89 50 4E 47
     if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'png';
     // JPEG: FF D8
     if (buf[0] === 0xFF && buf[1] === 0xD8) return 'jpeg';
     return 'unknown';
-  } catch {
-    return 'unknown';
-  }
+  } catch { return 'unknown'; }
 }
 
 function requireRelative(p, label) {
-  if (!isRelative(p)) warn(`${label}: path "${p}" is not relative. Prefer relative (e.g., assets/... not /assets/).`);
+  if (p && !isRelative(p)) warn(`${label}: path "${p}" is not relative. Prefer relative (assets/..., not /assets/).`);
 }
-
 function suggestNoSpaces(p, label) {
-  if (/\s/.test(p)) warn(`${label}: "${p}" contains spaces. Prefer renaming to use underscores to avoid URL encoding issues.`);
+  if (/\s/.test(p)) warn(`${label}: "${p}" contains spaces. Prefer underscores to avoid URL encoding issues in 3D viewer.`);
 }
-
 function suggestSafeBasename(p, label) {
   if (/%25|%20/i.test(p)) warn(`${label}: "${p}" looks URL-encoded (e.g., %20 or %2520). Prefer renaming the file in the repo to avoid double-encoding.`);
 }
@@ -260,8 +251,6 @@ async function preflight({
 
   // Viewer files
   const modelFiles = viewerFiles.filter(f => /\.3ds$/i.test(f));
-  const textureFiles = viewerFiles.filter(f => /\.(jpg|jpeg|png)$/i.test(f));
-
   if (viewerFiles.length === 0) {
     warn('3D viewer: no files discovered under assets/leads/<LEAD_ID>/viewer/');
   } else {
@@ -280,7 +269,6 @@ async function preflight({
     process.exit(1);
   }
   console.log(`✔ Preflight passed with ${warnings.length} warning(s).`);
-
   if (warnings.length && hasFlag('--strict')) {
     console.error('❌ --strict mode: warnings considered fatal.');
     process.exit(1);
@@ -307,6 +295,7 @@ async function preflight({
   const tplFile  = arg('--tpl', 'templates/quote.html.tpl');
   const outDir   = arg('--out', 'quotes');
   const SKIP_KOMMO = hasFlag('--skip-kommo');
+  const STRICT     = hasFlag('--strict');
 
   if (!dataFile) {
     console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>.json [--tpl templates/quote.html.tpl] [--out quotes] [--strict] [--skip-kommo]');
@@ -344,30 +333,12 @@ async function preflight({
   const vat      = subtotal * vatRate;
   const total    = subtotal + vat;
 
-  // Main images (RELATIVE paths recommended)
-  const doorsOn  = data.images?.doorsOn  || {};
-  const doorsOff = data.images?.doorsOff || {};
+  // Helper for path tokens (template expects PATH, not <img>)
+  const pathFrom = (obj) => (obj?.thumb || obj?.full || '').replace(/^\//,'');
 
-  // Advanced preflight (before building tokens)
-  await preflight({
-    logoRel: 'assets/logo.png',              // change if you rename logo
-    doorsOnThumb:  (doorsOn.thumb  || '').replace(/^\//,''),
-    doorsOffThumb: (doorsOff.thumb || '').replace(/^\//,''),
-    materials: (data.materials || []).map(m => ({ thumb: (m.thumb || '').replace(/^\//,'') })),
-    handles:   (data.handles   || []).map(h => ({ thumb: (h.thumb || '').replace(/^\//,'') })),
-    viewerFiles
-  });
-
-  // Build tokens (emit <img> with class + data-full if we have full)
-  const IMAGE_DOORSON_THUMB =
-    doorsOn.thumb
-      ? `<img class="thumb" src="${doorsOn.thumb.replace(/^\//,'')}" ${doorsOn.full ? `data-full="${doorsOn.full.replace(/^\//,'')}"` : ''} alt="${doorsOn.alt || 'Doors on'}"/>`
-      : '';
-
-  const IMAGE_DOORSOFF_THUMB =
-    doorsOff.thumb
-      ? `<img class="thumb" src="${doorsOff.thumb.replace(/^\//,'')}" ${doorsOff.full ? `data-full="${doorsOff.full.replace(/^\//,'')}"` : ''} alt="${doorsOff.alt || 'Doors off'}"/>`
-      : '';
+  // Build tokens as PATH STRINGS (template provides <img>)
+  const IMAGE_DOORSON_THUMB  = pathFrom(data.images?.doorsOn);
+  const IMAGE_DOORSOFF_THUMB = pathFrom(data.images?.doorsOff);
 
   // Materials
   let MATERIAL_1_THUMB = '';
@@ -377,16 +348,17 @@ async function preflight({
 
   if (Array.isArray(data.materials) && data.materials.length > 0) {
     const m0 = data.materials[0];
-    MATERIAL_1_THUMB =
-      m0?.thumb ? `<img class="swatch-thumb" src="${m0.thumb.replace(/^\//,'')}" ${m0.full ? `data-full="${m0.full.replace(/^\//,'')}"` : ''} alt="${m0.name || 'Material'}"/>` : '';
+    MATERIAL_1_THUMB = pathFrom(m0);
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
+    // Material[1]: template expects a full <figure> block
     if (data.materials[1]) {
       const m1 = data.materials[1];
+      const m1Path = pathFrom(m1);
       MATERIAL_2_BLOCK = `
 <figure class="swatch-card">
-  ${m1?.thumb ? `<img class="swatch-thumb" src="${m1.thumb.replace(/^\//,'')}" ${m1.full ? `data-full="${m1.full.replace(/^\//,'')}"` : ''} alt="${m1.name || 'Material'}"/>` : ''}
+  <img class="swatch-thumb" src="${m1Path}" data-full="${pathFrom({thumb:m1.full, full:m1.full}) || m1Path}" alt="${(m1?.name||'').replace(/"/g,'&quot;')}"/>
   <figcaption class="swatch-caption">
     <strong>${m1?.name || ''}</strong><br/>
     <span>${m1?.notes || ''}</span>
@@ -395,15 +367,16 @@ async function preflight({
     }
   }
 
-  // Handles
+  // Handles: template expects full <figure> blocks
   let HANDLE_1_BLOCK = '';
   let HANDLE_2_BLOCK = '';
 
   if (Array.isArray(data.handles) && data.handles.length > 0) {
     const h0 = data.handles[0];
+    const h0Path = pathFrom(h0);
     HANDLE_1_BLOCK = `
 <figure class="swatch-card">
-  ${h0?.thumb ? `<img class="swatch-thumb" src="${h0.thumb.replace(/^\//,'')}" ${h0.full ? `data-full="${h0.full.replace(/^\//,'')}"` : ''} alt="${h0.name || 'Handle'}"/>` : ''}
+  <img class="swatch-thumb" src="${h0Path}" data-full="${pathFrom({thumb:h0.full, full:h0.full}) || h0Path}" alt="${(h0?.name||'').replace(/"/g,'&quot;')}"/>
   <figcaption class="swatch-caption">
     <strong>${h0?.name || ''}</strong><br/>
     <span>${h0?.finish || ''}</span>
@@ -412,9 +385,10 @@ async function preflight({
 
     if (data.handles[1]) {
       const h1 = data.handles[1];
+      const h1Path = pathFrom(h1);
       HANDLE_2_BLOCK = `
 <figure class="swatch-card">
-  ${h1?.thumb ? `<img class="swatch-thumb" src="${h1.thumb.replace(/^\//,'')}" ${h1.full ? `data-full="${h1.full.replace(/^\//,'')}"` : ''} alt="${h1.name || 'Handle'}"/>` : ''}
+  <img class="swatch-thumb" src="${h1Path}" data-full="${pathFrom({thumb:h1.full, full:h1.full}) || h1Path}" alt="${(h1?.name||'').replace(/"/g,'&quot;')}"/>
   <figcaption class="swatch-caption">
     <strong>${h1?.name || ''}</strong><br/>
     <span>${h1?.finish || ''}</span>
@@ -423,12 +397,26 @@ async function preflight({
     }
   }
 
+  // Advanced preflight (before building final HTML)
+  await preflight({
+    logoRel: 'assets/logo.png',
+    doorsOnThumb:  IMAGE_DOORSON_THUMB,
+    doorsOffThumb: IMAGE_DOORSOFF_THUMB,
+    materials: (data.materials || []).map(m => ({ thumb: pathFrom(m) })),
+    handles:   (data.handles   || []).map(h => ({ thumb: pathFrom(h) })),
+    viewerFiles
+  });
+
+  // Compute revision ONCE and use consistently
+  await fs.mkdir(outDir, { recursive: true });
+  const revision = await getNextRevision(outDir, leadId);
+
   // Load template and replace tokens
   const tpl = await fs.readFile(path.resolve(tplFile), 'utf8');
 
   const html = replaceTokens(tpl, {
     LEAD_ID: leadId,
-    REVISION: await getNextRevision(outDir, leadId), // compute early to display
+    REVISION: revision,
     PROJECT_TITLE: data.projectTitle || lead.name || `Lead ${leadId}`,
     CLIENT_NAME: clientName,
     CLIENT_EMAIL: clientEmail,
@@ -468,8 +456,6 @@ async function preflight({
     CURRENCY: ccy
   });
 
-  // Write with final revision (recompute just before write)
-  const revision = await getNextRevision(outDir, leadId);
   const outPath  = path.join(outDir, `${leadId}_v${revision}.html`);
   await fs.writeFile(outPath, html, 'utf8');
 
@@ -482,6 +468,11 @@ async function preflight({
     console.log('✔ Kommo Latest Quote URL updated.');
   } else {
     console.log('ℹ Kommo PATCH skipped (--skip-kommo).');
+  }
+
+  if (STRICT && warnings.length) {
+    console.error('❌ --strict mode: finishing with warnings is not allowed.');
+    process.exit(1);
   }
 })().catch(e => {
   console.error(e);
