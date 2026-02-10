@@ -5,28 +5,28 @@
   "validUntil": "2026-03-10",
   "images": {
     "doorsOn": {
-      "thumb": "/assets/leads/21018810/images/Doors-On.jpg",
-      "full": "/assets/leads/21018810/images/Doors-On.jpg",
+      "thumb": "assets/leads/21018810/images/Doors On.jpg",
+      "full": "assets/leads/21018810/images/Doors On.jpg",
       "alt": "Front view — doors on"
     },
     "doorsOff": {
-      "thumb": "/assets/leads/21018810/images/Doors-Off.jpg",
-      "full": "/assets/leads/21018810/images/Doors-Off.jpg",
+      "thumb": "assets/leads/21018810/images/Doors Off.jpg",
+      "full": "assets/leads/21018810/images/Doors Off.jpg",
       "alt": "Front view — doors removed"
     }
   },
   "materials": [
     {
-      "thumb": "/assets/21018810/swatches/H3368_~1.png",
-      "full": "/assets/leads/21018810/swatches/H3368_~1.png",
+      "thumb": "assets/leads/21018810/swatches/H3368_~1.png",
+      "full": "assets/leads/21018810/swatches/H3368_~1.png",
       "name": "Egger U708 PM – Light Grey",
       "notes": "18mm MFC | PM finish"
     }
   ],
   "handles": [
     {
-      "thumb": "/assets/leads/21018810/swatches/pebble.jpg",
-      "full": "/assets/leads/21018810/swatches/pebble.jpg",
+      "thumb": "assets/leads/21018810/swatches/pebble.jpg",
+      "full": "assets/leads/21018810/swatches/pebble.jpg",
       "name": "Hafele Pebble 160mm",
       "finish": "Brushed brass"
     }
