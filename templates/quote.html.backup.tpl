@@ -68,33 +68,6 @@
     .viewer{margin-top:16px;border-radius:var(--rounded);border:1px solid var(--mid);overflow:hidden;position:relative;aspect-ratio:16/9;background:#000;}
     .viewer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
 
-    /* FAB wrapper so we can overlay controls without blocking the iframe */
-    .viewer-wrap{ position:relative; }
-
-    /* Our Floating Action Button (expand) */
-    .fab-3d{
-      position:absolute;
-      top:12px; right:12px;
-      width:40px; height:40px; border-radius:50%;
-      border:1px solid var(--mid);
-      background:var(--white); color:var(--black);
-      font-size:18px; line-height:1;
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; z-index:3;
-      box-shadow:0 2px 8px rgba(0,0,0,0.15);
-    }
-    .fab-3d:hover{ border-color:var(--black); }
-
-    /* Click-shield over the embed’s built-in FAB (same corner) */
-    .fab-shield{
-      position:absolute;
-      top:12px; right:12px;
-      width:44px; height:44px; /* a touch larger than our FAB */
-      z-index:2;
-      background:transparent;
-      /* pointer-events: auto by default — it soaks stray clicks to the embed’s FAB behind it */
-    }
-
     /* ------------------------------ SWATCHES ------------------------------ */
     .subhead{font-size:1.1rem;font-weight:600;margin-top:26px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
     .subhead-line{height:2px;background:var(--accent);width:60px;border-radius:2px;}
@@ -120,22 +93,6 @@
 
     /* ------------------------------ FOOTER ------------------------------ */
     .footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--mid);text-align:center;font-size:0.85rem;color:var(--grey);}
-
-    /* ------------------------------ 3D FULLSCREEN MODAL ------------------------------ */
-    .modal3d{ position:fixed; inset:0; display:none; z-index:99999; }
-    .modal3d[aria-hidden="false"]{ display:block; }
-    .modal3d-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
-    .modal3d-dialog{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:24px; }
-    .modal3d-close{
-      position:absolute; top:22px; right:28px; z-index:1;
-      font-size:34px; line-height:1; background:transparent; border:0; color:#fff; cursor:pointer;
-    }
-    .modal3d-content{
-      position:relative; width:100%; height:100%;
-      max-width:1400px; max-height:90vh;
-      border:1px solid var(--mid); border-radius:16px; overflow:hidden; background:#000;
-    }
-    .modal3d-content iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
   </style>
 </head>
 <body>
@@ -219,23 +176,12 @@
       </div>
     </div>
 
-    <!-- 3D VIEWER (with FAB and shield) -->
+    <!-- 3D VIEWER -->
     <div class="section">
       <h2>3D Visualisation</h2>
-      <p style="color:var(--grey);font-size:0.9rem;margin-bottom:10px;">
-        Rotate, zoom and pan to explore the model.
-      </p>
-
-      <div class="viewer-wrap">
-        <div class="viewer" id="viewerInline">
-          {{THREED_IFRAME_URL}}
-        </div>
-
-        <!-- Our expand FAB -->
-        <button class="fab-3d" id="open3dFullscreen" type="button" aria-label="Open 3D viewer full screen">⤢</button>
-
-        <!-- Shields the embed's own FAB area so it doesn't get accidental clicks -->
-        <div class="fab-shield" aria-hidden="true"></div>
+      <p style="color:var(--grey);font-size:0.9rem;margin-bottom:10px;">Rotate, zoom and pan to explore the model.</p>
+      <div class="viewer">
+        {{THREED_IFRAME_URL}}
       </div>
     </div>
 
@@ -295,24 +241,14 @@
 
   </div>
 
-  <!-- LIGHTBOX (images) -->
+  <!-- LIGHTBOX -->
   <div class="lightbox" id="lightbox">
     <span class="lightbox-close" id="lightbox-close">&times;</span>
     <img id="lightbox-img" src="" alt="">
   </div>
 
-  <!-- 3D FULLSCREEN MODAL (created once per page) -->
-  <div class="modal3d" id="modal3d" aria-hidden="true" role="dialog" aria-label="3D Viewer Full Screen">
-    <div class="modal3d-backdrop" id="modal3dBackdrop"></div>
-    <div class="modal3d-dialog" role="document" aria-modal="true">
-      <button class="modal3d-close" id="close3dFullscreen" type="button" aria-label="Close 3D Viewer">×</button>
-      <div class="modal3d-content" id="modal3dContent"></div>
-    </div>
-  </div>
-
   <script>
     (function(){
-      /* --------------------------- Image Lightbox --------------------------- */
       const box  = document.getElementById('lightbox');
       const img  = document.getElementById('lightbox-img');
       const exit = document.getElementById('lightbox-close');
@@ -337,42 +273,8 @@
       exit.addEventListener('click', hide);
       box.addEventListener('click', e => { if (e.target === box) hide(); });
       document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+    })();
+  </script>
 
-      /* ------------------------- 3D Fullscreen Modal ------------------------ */
-      const inlineViewer = document.getElementById('viewerInline');
-      const openBtn = document.getElementById('open3dFullscreen');
-      const modal = document.getElementById('modal3d');
-      const modalContent = document.getElementById('modal3dContent');
-      const closeBtn = document.getElementById('close3dFullscreen');
-      const backdrop = document.getElementById('modal3dBackdrop');
-
-      let clonedIframe = null;
-      let lastFocus = null;
-
-      function openModal3D(){
-        const srcIframe = inlineViewer.querySelector('iframe');
-        if (!srcIframe) return;
-        lastFocus = document.activeElement;
-
-        // Clone the exact inline iframe so full-screen matches inline view
-        clonedIframe = srcIframe.cloneNode(true);
-        clonedIframe.setAttribute('loading', 'eager');
-
-        modalContent.innerHTML = '';
-        modalContent.appendChild(clonedIframe);
-        modal.setAttribute('aria-hidden', 'false');
-
-        document.body.style.overflow = 'hidden';
-        closeBtn.focus();
-      }
-
-      function closeModal3D(){
-        modal.setAttribute('aria-hidden', 'true');
-        modalContent.innerHTML = '';
-        clonedIframe = null;
-        document.body.style.overflow = '';
-        if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
-      }
-
-      if (openBtn)  openBtn.addEventListener('click', openModal3D);
-      if (closeBtn) closeBtn.addEventListener('
+</body>
+</html>
