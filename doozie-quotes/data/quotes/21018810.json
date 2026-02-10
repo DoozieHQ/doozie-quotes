@@ -1,0 +1,70 @@
+{
+  "leadId": "21018810",
+  "projectTitle": "Grahams Home Office",
+  "issueDate": "2026-02-10",
+  "validUntil": "2026-03-10",
+  "images": {
+    "doorsOn": {
+      "thumb": "/assets/leads/21018810/images/Doors-On.jpg",
+      "full": "/assets/leads/21018810/images/Doors-On.jpg",
+      "alt": "Front view — doors on"
+    },
+    "doorsOff": {
+      "thumb": "/assets/leads/21018810/images/Doors-Off.jpg",
+      "full": "/assets/leads/21018810/images/Doors-Off.jpg",
+      "alt": "Front view — doors removed"
+    }
+  },
+  "materials": [
+    {
+      "thumb": "/assets/21018810/swatches/H3368_~1.png",
+      "full": "/assets/leads/21018810/swatches/H3368_~1.png",
+      "name": "Egger U708 PM – Light Grey",
+      "notes": "18mm MFC | PM finish"
+    }
+  ],
+  "handles": [
+    {
+      "thumb": "/assets/leads/21018810/swatches/pebble.jpg",
+      "full": "/assets/leads/21018810/swatches/pebble.jpg",
+      "name": "Hafele Pebble 160mm",
+      "finish": "Brushed brass"
+    }
+  ],
+  "overview": "Cabinetry sized to site survey with integrated appliances and moisture-resistant cores. Includes scribing, fillers and 2-year workmanship warranty.",
+  "pricing": {
+    "currency": "£",
+    "items": [
+      {
+        "name": "Cabinet Carcasses (MR MFC)",
+        "qty": 1,
+        "unit": 1250
+      },
+      {
+        "name": "Doors & Fronts (PM finish)",
+        "qty": 1,
+        "unit": 950
+      },
+      {
+        "name": "Worktop & Edging",
+        "qty": 1,
+        "unit": 620
+      },
+      {
+        "name": "Handles (pair)",
+        "qty": 1,
+        "unit": 58
+      },
+      {
+        "name": "Installation & Scribing",
+        "qty": 1,
+        "unit": 480
+      }
+    ],
+    "vatRate": 0.2
+  },
+  "client": {
+    "name": "Hannah Cawthorne",
+    "email": "hannah@test.com"
+  }
+}

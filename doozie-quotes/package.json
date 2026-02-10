@@ -1,0 +1,15 @@
+{
+  "name": "doozie-quotes",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Doozie quote pages (HTML + assets) with Kommo + Vercel automation",
+  "scripts": {
+    "sync:kommo": "node scripts/sync-kommo-lead.js --lead 12345678",
+    "sync:assets": "node scripts/sync-assets.js --data data/quotes/12345678.json --root assets/leads/12345678/",
+    "build:quote": "node scripts/generate-quote-local.js --data data/quotes/12345678.json --tpl templates/quote.html.tpl --out quotes"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "node-fetch": "^3.3.2"
+  }
+}

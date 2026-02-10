@@ -1,0 +1,17 @@
+# Node
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env
+.env
+.env.local
+
+# Mac/Win noise
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+quotes/*.html

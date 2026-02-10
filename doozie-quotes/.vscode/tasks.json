@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Quote (local)",
+      "type": "shell",
+      "command": "node scripts/generate-quote-local.js --data data/quotes/12345678.json --tpl templates/quote.html.tpl --out quotes",
+      "problemMatcher": []
+    }
+  ]
+}

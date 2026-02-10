@@ -1,0 +1,66 @@
+name: Sync & Publish Quote
+on:
+  workflow_dispatch:
+    inputs:
+      leadId:
+        description: "Kommo Lead ID"
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Sync Kommo metadata (optional)
+        env:
+          KOMMO_SUBDOMAIN: ${{ secrets.KOMMO_SUBDOMAIN }}
+          KOMMO_TOKEN: ${{ secrets.KOMMO_TOKEN }}
+        run: |
+          node scripts/sync-kommo-lead.js --lead "${{ inputs.leadId }}"
+
+      # Optional: download & thumbnail if JSON uses external sources (uncomment if needed)
+      # - name: Install ImageMagick
+      #   run: sudo apt-get update && sudo apt-get install -y imagemagick
+      #
+      # - name: Sync & resize images
+      #   run: |
+      #     node scripts/sync-assets.js \
+      #       --data "data/quotes/${{ inputs.leadId }}.json" \
+      #       --root "assets/leads/${{ inputs.leadId }}/"
+
+      - name: Generate HTML & update Kommo Latest URL
+        env:
+          GH_OWNER: ${{ secrets.GH_OWNER }}
+          GH_REPO:  ${{ secrets.GH_REPO }}
+          GH_BRANCH:${{ secrets.GH_BRANCH }}
+
+          KOMMO_SUBDOMAIN: ${{ secrets.KOMMO_SUBDOMAIN }}
+          KOMMO_TOKEN: ${{ secrets.KOMMO_TOKEN }}
+          KOMMO_LATEST_URL_FIELD_ID: ${{ secrets.KOMMO_LATEST_URL_FIELD_ID }}
+
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          DEFAULT_CURRENCY: "£"
+        run: |
+          node scripts/generate-quote-local.js \
+            --data "data/quotes/${{ inputs.leadId }}.json" \
+            --tpl "templates/quote.html.tpl" \
+            --out "quotes"
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add quotes/ data/quotes/${{ inputs.leadId }}.json data/kommo/leads/${{ inputs.leadId }}.raw.json || true
+          git commit -m "Quote for lead ${{ inputs.leadId }}" || echo "No changes"
+          git push

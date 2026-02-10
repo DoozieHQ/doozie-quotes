@@ -1,0 +1,41 @@
+{
+  "id": 21018810,
+  "name": "Lead #21018810",
+  "price": 1234,
+  "responsible_user_id": 13020767,
+  "group_id": 0,
+  "status_id": 83750511,
+  "pipeline_id": 10920655,
+  "loss_reason_id": null,
+  "created_by": 13020767,
+  "updated_by": 0,
+  "created_at": 1770575076,
+  "updated_at": 1770646511,
+  "closed_at": null,
+  "closest_task_at": 1770666074,
+  "is_deleted": false,
+  "custom_fields_values": null,
+  "score": null,
+  "account_id": 34438803,
+  "labor_cost": null,
+  "_links": {
+    "self": {
+      "href": "https://doozie.kommo.com/api/v4/leads/21018810?with=contacts&page=1&limit=250"
+    }
+  },
+  "_embedded": {
+    "tags": [],
+    "companies": [],
+    "contacts": [
+      {
+        "id": 28725380,
+        "is_main": true,
+        "_links": {
+          "self": {
+            "href": "https://doozie.kommo.com/api/v4/contacts/28725380?with=contacts&page=1&limit=250"
+          }
+        }
+      }
+    ]
+  }
+}
