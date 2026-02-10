@@ -1,4 +1,5 @@
 name: Sync & Publish Quote
+
 on:
   workflow_dispatch:
     inputs:
@@ -17,7 +18,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
 
       - name: Install deps
         run: npm ci
@@ -43,7 +45,7 @@ jobs:
         env:
           GH_OWNER: ${{ secrets.GH_OWNER }}
           GH_REPO:  ${{ secrets.GH_REPO }}
-          GH_BRANCH:${{ secrets.GH_BRANCH }}
+          GH_BRANCH: ${{ secrets.GH_BRANCH }}
 
           KOMMO_SUBDOMAIN: ${{ secrets.KOMMO_SUBDOMAIN }}
           KOMMO_TOKEN: ${{ secrets.KOMMO_TOKEN }}
