@@ -12,6 +12,3 @@ yarn-error.log*
 # Mac/Win noise
 .DS_Store
 Thumbs.db
-
-# Build artifacts
-quotes/*.html
