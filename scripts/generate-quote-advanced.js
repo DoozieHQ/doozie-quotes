@@ -62,15 +62,20 @@ function buildRawUrl(owner, repo, branch, relPath) {
 function build3DViewerIframe(owner, repo, branch, filePaths) {
   if (!Array.isArray(filePaths) || filePaths.length === 0) return '';
 
-  // Build RAW GitHub URLs (NOT encoded)
+  // 1. Build RAW GitHub URLs without encoding
   const urls = filePaths.map(p => buildRawUrl(owner, repo, branch, p));
 
-  // Join using commas, with NO encodeURIComponent
+  // 2. Join into comma-separated list (NOT encoded)
   const modelList = urls.join(',');
 
-  // Optional: add viewer settings (recommended)
+  // 3. Fixed camera settings (Option A: stable defaults)
+  const camera =
+    '$camera=8742.95150,3777.59723,-3746.25877,' +
+    '1172.74561,1294.75024,1252.00024,' +
+    '0.00000,1.00000,0.00000,45.00000';
+
+  // 4. Additional recommended viewer settings
   const settings =
-    '$camera=8742.95150,3777.59723,-3746.25877,1172.74561,1294.75024,1252.00024,0.00000,1.00000,0.00000,45.00000' +
     '$projectionmode=perspective' +
     '$envsettings=fishermans_bastion,off' +
     '$backgroundcolor=255,255,255,255' +
@@ -78,7 +83,7 @@ function build3DViewerIframe(owner, repo, branch, filePaths) {
     '$defaultlinecolor=100,100,100' +
     '$edgesettings=off,0,0,0,1';
 
-  return `<iframe src="https://3dviewer.net/embed.html#model=${modelList}${settings}" allowfullscreen></iframe>`;
+  return `<iframe src="https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}" allowfullscreen></iframe>`;
 }
 
 // ------------------------- auto-discover viewer files -------------------------
@@ -103,34 +108,6 @@ async function autoDiscoverViewerFiles(leadId) {
   }
   await walk(base);
   return found;
-}
-
-//---------------------------3d Viewer Camera Positioning------------
-function build3DViewerIframe(owner, repo, branch, filePaths) {
-  if (!Array.isArray(filePaths) || filePaths.length === 0) return '';
-
-  // 1. Build RAW GitHub URLs without encoding
-  const urls = filePaths.map(p => buildRawUrl(owner, repo, branch, p));
-
-  // 2. Join into comma-separated list (NOT encoded)
-  const modelList = urls.join(',');
-
-  // 3. Fixed camera settings (Option A: stable defaults)
-  const camera =
-    '$camera=8742.95150,3777.59723,-3746.25877,' +
-    '1172.74561,1294.75024,1252.00024,' +
-    '0.00000,1.00000,0.00000,45.00000';
-
-  // 4. Additional recommended viewer settings
-  const settings =
-    '$projectionmode=perspective' +
-    '$envsettings=fishermans_bastion,off' +
-    '$backgroundcolor=255,255,255,255' +
-    '$defaultcolor=200,200,200' +
-    '$defaultlinecolor=100,100,100' +
-    '$edgesettings=off,0,0,0,1';
-
-  return `<iframe src="https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}" allowfullscreen></iframe>`;
 }
 
 // ------------------------- Kommo helpers -------------------------
