@@ -39,7 +39,7 @@ try {
   };
 }
 
-/* ----------------------------- utils ----------------------------- */
+/* ----------------------------- small utils ----------------------------- */
 function arg(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
   return (i !== -1 && process.argv[i + 1]) ? process.argv[i + 1] : fallback;
@@ -53,7 +53,7 @@ function assertEnv(name) {
 function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
 
-/* Root-absolute web paths for on-site files */
+/* Root-absolute web paths for on-site files we copy into /assets/... */
 function toWebPath(rel) {
   if (!rel) return '';
   return '/' + toPosix(rel).replace(/^\/+/, '');
@@ -103,26 +103,27 @@ async function listFiles(folder, exts = []) {
   return out;
 }
 
-/* GH raw URL builder for 3D viewer */
-function buildRawUrl(owner, repo, branch, relPath) {
-  const clean = String(relPath).replace(/^\/+/, '');
+/* ensure/copy helpers for publishing swatch/handle images into /assets/leads/<leadId>/... */
+async function ensureDir(dir){ await fs.mkdir(dir,{recursive:true}); }
+async function copyFileTo(src, dstDir){
+  await ensureDir(dstDir);
+  const base=path.basename(src); const dst=path.join(dstDir, base);
+  await fs.copyFile(src, dst);
+  return toPosix(dst);
+}
+
+/* ---------------- GH Raw URL builder for 3D viewer ---------------- */
+function ghRaw(owner, repo, branch, repoRelPath) {
+  const clean = String(repoRelPath).replace(/^\/+/, '');
   const encoded = clean.split('/').map(encodeURIComponent).join('/');
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-/* Model URLs: GH Raw (default) or local PUBLIC_BASE_URL */
-function buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, mode = 'gh') {
-  if (mode === 'local') {
-    const base = PUBLIC.replace(/\/+$/,'');
-    return relPaths.map(rel => `${base}${toWebPath(rel)}`);
-  }
-  return relPaths.map(rel => buildRawUrl(owner, repo, branch, rel));
-}
-
-/* ✅ Build a COMPLETE <iframe> element for the 3D viewer */
-function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSource = 'gh' }) {
-  if (!relPaths.length) return '';
-  const urls = buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, viewerSource);
+/* ✅ Build a COMPLETE <iframe> for the 3D viewer using GH Raw repo paths */
+function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, basenames = [] }) {
+  if (!Array.isArray(basenames) || basenames.length === 0) return '';
+  const repoDir = `assets/leads/${leadId}/viewer`;  // you must commit & push files here
+  const urls = basenames.map(fn => ghRaw(owner, repo, branch, `${repoDir}/${fn}`));
   const modelList = urls.join(',');
 
   const camera =
@@ -139,8 +140,7 @@ function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSour
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  // RETURN A REAL IFRAME
-  return `<iframe src="${src}" allowfullscreen></iframe>`;
+  return `${src}" allowfullscreen></iframe>`;
 }
 
 /* Kommo helpers */
@@ -204,7 +204,6 @@ async function getNextRevision(outDir, leadId) {
   const LATEST_ID = assertEnv('KOMMO_LATEST_URL_FIELD_ID');
   const PUBLIC    = assertEnv('PUBLIC_BASE_URL'); // e.g. https://quotes.doozie.co
   const DEFAULT_CCY = process.env.DEFAULT_CURRENCY || '£';
-  const VIEWER_SOURCE = (process.env.VIEWER_SOURCE || 'gh').toLowerCase(); // 'gh' or 'local'
 
   const dataFile = arg('--data');
   const tplFile  = arg('--tpl', 'templates/quote.html.tpl');
@@ -240,20 +239,19 @@ async function getNextRevision(outDir, leadId) {
   const materialsDir = path.join(assetsDir, 'materials');
   const handlesDir   = path.join(assetsDir, 'handles');
 
-  const viewerFiles   = await listFiles(viewerDir,    ['.3ds','.png','.jpg','.jpeg']);
-  const materialFiles = await listFiles(materialsDir, ['.png','.jpg','.jpeg']);
-  const handleFiles   = await listFiles(handlesDir,   ['.png','.jpg','.jpeg']);
+  const viewerFilesAbs   = (await listFiles(viewerDir,    ['.3ds','.png','.jpg','.jpeg'])).map(p => path.resolve(p));
+  const materialFilesAbs = (await listFiles(materialsDir, ['.png','.jpg','.jpeg'])).map(p => path.resolve(p));
+  const handleFilesAbs   = (await listFiles(handlesDir,   ['.png','.jpg','.jpeg'])).map(p => path.resolve(p));
 
-  /* 3D viewer iframe token */
-  const relViewerPaths = viewerFiles.map(x => path.relative(process.cwd(), x));
-  const THREED_IFRAME_URL = relViewerPaths.length
-    ? build3DViewerIframe({
+  /* 3D viewer token — from GH Raw repo paths (commit/push these paths!) */
+  const viewerBasenames = viewerFilesAbs.map(p => path.basename(p));
+  const THREED_IFRAME_URL = viewerBasenames.length
+    ? build3DViewerIframeFromRepo({
         owner: GH_OWNER,
         repo: GH_REPO,
         branch: GH_BRANCH,
-        relPaths: relViewerPaths,
-        PUBLIC,
-        viewerSource: VIEWER_SOURCE
+        leadId,
+        basenames: viewerBasenames
       })
     : '';
 
@@ -283,7 +281,7 @@ async function getNextRevision(outDir, leadId) {
     }).join('\n')
     : `<tr><td colspan="4">No items.</td></tr>`;
 
-  /* Materials (unlimited; order = JSON) */
+  /* Materials (unlimited; order = JSON) — copy into /assets/leads/<leadId>/materials/ */
   const materialMeta = Array.isArray(data.materials) ? data.materials : [];
   let MATERIAL_1_THUMB = '';   // FULL <img> element
   let MATERIAL_1_NAME  = '';
@@ -291,20 +289,26 @@ async function getNextRevision(outDir, leadId) {
   let MATERIAL_2_BLOCK = '';   // remaining materials as blocks
 
   if (materialMeta.length > 0) {
-    // Material 1 — full <img>
+    const pubMatDir = path.resolve('assets','leads',leadId,'materials');
+
+    // Material 1
     const m0 = materialMeta[0];
-    const f0 = materialFiles[0] ? toWebUrl(path.relative(process.cwd(), materialFiles[0])) : '';
-    MATERIAL_1_THUMB = `<img class="swatch-thumb" src="${f0}" data-full="${f0}" alt="${escAttr(m0?.name||'')}" />`;
+    const f0 = materialFilesAbs[0]
+      ? toWebUrl(path.relative(process.cwd(), await copyFileTo(materialFilesAbs[0], pubMatDir)))
+      : '';
+    MATERIAL_1_THUMB = `${f0}`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
-    // Material 2+ — blocks with full <img>
+    // Material 2+
     for (let i = 1; i < materialMeta.length; i++) {
       const mi = materialMeta[i];
-      const fi = materialFiles[i] ? toWebUrl(path.relative(process.cwd(), materialFiles[i])) : '';
+      const fi = materialFilesAbs[i]
+        ? toWebUrl(path.relative(process.cwd(), await copyFileTo(materialFilesAbs[i], pubMatDir)))
+        : '';
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(mi?.name||'')}" />
+  ${fi}
   <figcaption class="swatch-caption">
     <strong>${escAttr(mi?.name || '')}</strong><br/>
     <span>${escAttr(mi?.notes || '')}</span>
@@ -313,18 +317,22 @@ async function getNextRevision(outDir, leadId) {
     }
   }
 
-  /* Handles (unlimited; order = JSON) */
+  /* Handles (unlimited; order = JSON) — copy into /assets/leads/<leadId>/handles/ */
   const handleMeta = Array.isArray(data.handles) ? data.handles : [];
   let HANDLE_1_BLOCK = '';
   let HANDLE_2_BLOCK = '';
 
   if (handleMeta.length > 0) {
+    const pubHdlDir = path.resolve('assets','leads',leadId,'handles');
+
     for (let i = 0; i < handleMeta.length; i++) {
       const hi = handleMeta[i];
-      const fi = handleFiles[i] ? toWebUrl(path.relative(process.cwd(), handleFiles[i])) : '';
+      const fi = handleFilesAbs[i]
+        ? toWebUrl(path.relative(process.cwd(), await copyFileTo(handleFilesAbs[i], pubHdlDir)))
+        : '';
       const block = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(hi?.name||'')}" />
+  ${fi}
   <figcaption class="swatch-caption">
     <strong>${escAttr(hi?.name || '')}</strong><br/>
     <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
@@ -336,11 +344,11 @@ async function getNextRevision(outDir, leadId) {
   }
 
   /* Preflight (informational) */
-  console.log('🔍 Preflight (Drop-Folder)…');
-  if (!viewerFiles.length)   console.warn('⚠️ No 3D viewer files found in assets/viewer/');
-  if (!materialFiles.length) console.warn('⚠️ No material swatches found in assets/materials/');
-  if (!handleFiles.length)   console.warn('⚠️ No handle swatches found in assets/handles/');
-  console.log(`ℹ️  3D model URL source: ${VIEWER_SOURCE === 'local' ? 'LOCAL (PUBLIC_BASE_URL)' : 'GitHub Raw'}`);
+  console.log('🔍 Preflight…');
+  if (!viewerFilesAbs.length)   console.warn('⚠️ No 3D viewer files found in data/.../assets/viewer/');
+  if (!materialFilesAbs.length) console.warn('⚠️ No material swatches found in data/.../assets/materials/');
+  if (!handleFilesAbs.length)   console.warn('⚠️ No handle swatches found in data/.../assets/handles/');
+  console.log(`ℹ️ 3D models/textures expected at GH Raw: assets/leads/${leadId}/viewer/<files>`);
 
   /* Revision & dates */
   await fs.mkdir(outDir, { recursive: true });
@@ -350,11 +358,6 @@ async function getNextRevision(outDir, leadId) {
   const expiryISO = addDays(issueISO, 30);
   const ISSUE_DATE  = formatDateIntl(issueISO);
   const EXPIRY_DATE = formatDateIntl(expiryISO);
-
-  /* --- Diagnostics (so we can sanity-check output) --- */
-  console.log('DBG iframe starts with:', THREED_IFRAME_URL.slice(0, 40));
-  console.log('DBG mat1 img starts:', MATERIAL_1_THUMB.slice(0, 40));
-  console.log('DBG mats block len:', MATERIAL_2_BLOCK.length, 'handles block len:', (HANDLE_1_BLOCK + HANDLE_2_BLOCK).length);
 
   /* Build HTML */
   const tpl  = await fs.readFile(path.resolve(tplFile), 'utf8');
@@ -390,7 +393,7 @@ async function getNextRevision(outDir, leadId) {
 
   const outPath  = path.join(outDir, `${leadId}_v${revision}.html`);
   await fs.writeFile(outPath, html, 'utf8');
-  const publicUrl = `${PUBLIC.replace(/\/+$/, '')}/quotes/${leadId}_v${revision}.html`;
+  const publicUrl = `${PUBLIC.replace(/\/+$/,'')}/quotes/${leadId}_v${revision}.html`;
 
   console.log(`✔ Generated: ${outPath}`);
   console.log(`✔ Public URL: ${publicUrl}`);
