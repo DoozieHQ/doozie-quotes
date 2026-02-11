@@ -17,7 +17,10 @@ document.addEventListener("DOMContentLoaded", function(){
 
   const thumbs = document.querySelectorAll('.thumb, .swatch-thumb');
 
-  /* LIGHTBOX */
+  /* ---------------------------
+   * LIGHTBOX
+   * ------------------------- */
+
   function showLightbox(fullSrc){
     if (modal.getAttribute('aria-hidden') === 'false') {
       closeModal3D();
@@ -33,11 +36,14 @@ document.addEventListener("DOMContentLoaded", function(){
     lightbox.style.display = 'none';
     lightboxImg.src = '';
     document.body.style.overflow = '';
+
     if (viewerCover) viewerCover.style.display = 'none';
   }
 
   thumbs.forEach(t => {
-    t.addEventListener('click', () => showLightbox(t.dataset.full || t.src));
+    t.addEventListener('click', () => {
+      showLightbox(t.dataset.full || t.src);
+    });
   });
 
   lightboxExit?.addEventListener('click', hideLightbox);
@@ -47,18 +53,21 @@ document.addEventListener("DOMContentLoaded", function(){
     if (e.key === 'Escape') hideLightbox();
   });
 
-  /* FULLSCREEN 3D VIEWER */
-  function injectMask() {
+  /* ---------------------------
+   * FULLSCREEN 3D VIEWER
+   * ------------------------- */
+
+  // Create a FAB mask for fullscreen (covers bottom-right viewer FAB)
+  function createFullscreenMask() {
     const mask = document.createElement('div');
-    mask.className = 'fab-mask-fs';
     mask.style.position = 'absolute';
     mask.style.bottom = '0';
     mask.style.right = '0';
-    mask.style.width = '140px';
-    mask.style.height = '140px';
-    mask.style.background = 'black';
-    mask.style.zIndex = '2';
+    mask.style.width = '160px';   // generous coverage
+    mask.style.height = '160px';
+    mask.style.background = 'black'; // matches modal background
     mask.style.pointerEvents = 'none';
+    mask.style.zIndex = '2';      // above iframe, below close button
     return mask;
   }
 
@@ -68,15 +77,20 @@ document.addEventListener("DOMContentLoaded", function(){
 
     lastFocus = document.activeElement;
 
+    // Clone iframe
     clonedIframe = srcIframe.cloneNode(true);
     clonedIframe.setAttribute('loading','eager');
 
+    // Clear previous modal content
     modalContent.innerHTML = '';
+
+    // Insert iframe
     modalContent.appendChild(clonedIframe);
 
-    // ADD MASK ABOVE THE IFRAME
-    modalContent.appendChild(injectMask());
+    // Insert FAB mask over iframe
+    modalContent.appendChild(createFullscreenMask());
 
+    // Open modal
     modal.setAttribute('aria-hidden','false');
     document.body.style.overflow = 'hidden';
   }
@@ -87,6 +101,7 @@ document.addEventListener("DOMContentLoaded", function(){
     clonedIframe = null;
 
     document.body.style.overflow = '';
+
     if (viewerCover) viewerCover.style.display = 'none';
 
     if (lastFocus && lastFocus.focus) lastFocus.focus();
