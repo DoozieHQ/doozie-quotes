@@ -4,13 +4,13 @@ import path from 'node:path';
 import fetch from 'node-fetch';
 
 /* ------------------------------------------------------------
- * Optional Markdown support: try 'marked', otherwise fallback.
+ * Markdown: prefer 'marked', otherwise use a tiny safe fallback.
  * ------------------------------------------------------------ */
 let marked;
 try {
   ({ marked } = await import('marked')); // dynamic ESM import
 } catch {
-  // Minimal Markdown -> HTML (bold **text**, italic *text*, lists, paragraphs)
+  // Minimal Markdown -> HTML: **bold**, *italic*, lists, paragraphs
   marked = {
     parse(md = '') {
       md = String(md).replace(/\r\n?/g, '\n');
@@ -23,19 +23,24 @@ try {
       for (const raw of lines) {
         const line = raw.trimEnd();
 
-        // unordered list
+        // unordered list item?
         const m = line.match(/^[-*]\s+(.*)$/);
         if (m) {
           if (!listOpen) { out.push('<ul>'); listOpen = true; }
-          const li = esc(m[1]).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+          const li = esc(m[1])
+            .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g,'<em>$1</em>');
           out.push(`<li>${li}</li>`);
           continue;
         }
 
         if (line.trim() === '') { flushList(); out.push(''); continue; }
 
+        // paragraph
         flushList();
-        const p = esc(line).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+        const p = esc(line)
+          .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g,'<em>$1</em>');
         out.push(`<p>${p}</p>`);
       }
       flushList();
@@ -50,7 +55,11 @@ function arg(flag, fallback = null) {
   return (i !== -1 && process.argv[i + 1]) ? process.argv[i + 1] : fallback;
 }
 function hasFlag(flag) { return process.argv.includes(flag); }
-function assertEnv(name) { const v = process.env[name]; if (!v) { console.error(`❌ Missing env: ${name}`); process.exit(1); } return v; }
+function assertEnv(name) {
+  const v = process.env[name];
+  if (!v) { console.error(`❌ Missing env: ${name}`); process.exit(1); }
+  return v;
+}
 function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
 
@@ -63,7 +72,7 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-/* date helpers */
+/* dates */
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatDateIntl(iso) {
   const d = iso ? new Date(iso) : new Date();
@@ -79,7 +88,7 @@ function addDays(iso, days) {
   return d.toISOString().slice(0,10);
 }
 
-/* list files by extension (non-recursive for drop-folder) */
+/* list files in a folder by extension (non-recursive) */
 async function listFiles(folder, exts = []) {
   const out = [];
   try {
@@ -95,14 +104,14 @@ async function listFiles(folder, exts = []) {
   return out;
 }
 
-/* GH raw for 3D viewer */
+/* GH raw URL builder for 3D viewer */
 function buildRawUrl(owner, repo, branch, relPath) {
   const clean = String(relPath).replace(/^\/+/, '');
   const encoded = clean.split('/').map(encodeURIComponent).join('/');
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-/* Build a COMPLETE iframe element for the 3D viewer */
+/* Build a COMPLETE <iframe> element for the 3D viewer */
 function build3DViewerIframe(owner, repo, branch, viewerFiles) {
   if (!viewerFiles.length) return '';
   const urls = viewerFiles.map(p => buildRawUrl(owner, repo, branch, p));
@@ -208,8 +217,9 @@ async function getNextRevision(outDir, leadId) {
   if (contacts.length){
     const c = await kommoGetContact(KOMMO_SUB, KOMMO_TOK, contacts[0].id);
     clientName = c.name || '';
-    const emailField = (c.custom_fields_values || []).find(f=>f.field_code==='EMAIL')
-                    || (c.custom_fields_values || []).find(f=>String(f.field_name||'').toLowerCase().includes('email'));
+    const emailField =
+        (c.custom_fields_values || []).find(f=>f.field_code==='EMAIL') ||
+        (c.custom_fields_values || []).find(f=>String(f.field_name||'').toLowerCase().includes('email'));
     clientEmail = emailField?.values?.[0]?.value || '';
   }
 
@@ -219,14 +229,12 @@ async function getNextRevision(outDir, leadId) {
   const viewerDir    = path.join(assetsDir, 'viewer');
   const materialsDir = path.join(assetsDir, 'materials');
   const handlesDir   = path.join(assetsDir, 'handles');
-  const doorsDir     = path.join(assetsDir, 'doorviews');
 
   const viewerFiles   = await listFiles(viewerDir,    ['.3ds','.png','.jpg','.jpeg']);
   const materialFiles = await listFiles(materialsDir, ['.png','.jpg','.jpeg']);
   const handleFiles   = await listFiles(handlesDir,   ['.png','.jpg','.jpeg']);
-  const doorFiles     = await listFiles(doorsDir,     ['.png','.jpg','.jpeg']);
 
-  /* 3D viewer iframe token (uses GH raw URLs) */
+  /* 3D viewer iframe token (GH raw URLs) */
   const THREED_IFRAME_URL = viewerFiles.length
     ? build3DViewerIframe(GH_OWNER, GH_REPO, GH_BRANCH, viewerFiles.map(x => path.relative(process.cwd(), x)))
     : '';
@@ -259,20 +267,20 @@ async function getNextRevision(outDir, leadId) {
 
   /* Materials (unlimited; order = JSON) */
   const materialMeta = Array.isArray(data.materials) ? data.materials : [];
-  let MATERIAL_1_THUMB = '';
+  let MATERIAL_1_THUMB = '';   // FULL <img> element
   let MATERIAL_1_NAME  = '';
   let MATERIAL_1_NOTES = '';
-  let MATERIAL_2_BLOCK = '';
+  let MATERIAL_2_BLOCK = '';   // all remaining materials as blocks
 
   if (materialMeta.length > 0) {
-    // Material 1: emit FULL <img> element with data-full + alt
+    // Material 1 — emit full <img>
     const m0 = materialMeta[0];
     const f0 = materialFiles[0] ? toWebUrl(path.relative(process.cwd(), materialFiles[0])) : '';
     MATERIAL_1_THUMB = `${f0}`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
-    // Material 2+ as BLOCKS (each with <img class="swatch-thumb"...>)
+    // Material 2+ — emit blocks with full <img>
     for (let i = 1; i < materialMeta.length; i++) {
       const mi = materialMeta[i];
       const fi = materialFiles[i] ? toWebUrl(path.relative(process.cwd(), materialFiles[i])) : '';
@@ -309,10 +317,6 @@ async function getNextRevision(outDir, leadId) {
     }
   }
 
-  /* Door views (optional) — still supported if you keep the section */
-  const IMAGE_DOORSON_THUMB  = doorFiles[0] ? toWebUrl(path.relative(process.cwd(), doorFiles[0])) : '';
-  const IMAGE_DOORSOFF_THUMB = doorFiles[1] ? toWebUrl(path.relative(process.cwd(), doorFiles[1])) : '';
-
   /* Preflight (informational in drop-folder mode) */
   console.log('🔍 Preflight (Drop-Folder)…');
   if (!viewerFiles.length)   console.warn('⚠️ No 3D viewer files found in assets/viewer/');
@@ -342,9 +346,6 @@ async function getNextRevision(outDir, leadId) {
     EXPIRY_DATE,
 
     OVERVIEW_TEXT,
-
-    IMAGE_DOORSON_THUMB,
-    IMAGE_DOORSOFF_THUMB,
 
     THREED_IFRAME_URL,
 
