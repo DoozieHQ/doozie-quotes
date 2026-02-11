@@ -62,9 +62,9 @@ function build3DViewerIframe(owner, repo, branch, filePaths) {
   const modelList = urls.join(',');
 
   const camera =
-    '$camera=3059.0,1322.2,-1311.2,' +
+    '$camera=4371.47575,1888.79862,-1873.12939,' +
     '1172.74561,1294.75024,1252.00024,' +
-    '0.00000,1.00000,0.00000,32';
+    '0.00000,1.00000,0.00000,38';
 
   const settings =
     '$projectionmode=perspective' +
