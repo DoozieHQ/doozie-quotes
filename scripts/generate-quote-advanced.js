@@ -4,7 +4,7 @@ import path from 'node:path';
 import fetch from 'node-fetch';
 
 /* ------------------------------------------------------------
- * Markdown: prefer 'marked', otherwise use a tiny safe fallback.
+ * Markdown: prefer 'marked', else use a tiny safe fallback.
  * ------------------------------------------------------------ */
 let marked;
 try {
@@ -72,7 +72,7 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-/* Escape for HTML attributes */
+/* HTML attribute escape (names/notes/finish) */
 function escAttr(s = '') {
   return String(s)
     .replace(/&/g,'&amp;')
@@ -150,6 +150,7 @@ function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSour
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
+  // RETURN A REAL IFRAME
   return `${src}" allowfullscreen></iframe>`;
 }
 
