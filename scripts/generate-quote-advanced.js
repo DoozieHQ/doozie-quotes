@@ -4,13 +4,12 @@ import path from 'node:path';
 import fetch from 'node-fetch';
 
 /* ------------------------------------------------------------
- * Markdown: prefer 'marked', else use a tiny safe fallback.
+ * Markdown: prefer 'marked', otherwise tiny safe fallback.
  * ------------------------------------------------------------ */
 let marked;
 try {
-  ({ marked } = await import('marked')); // dynamic ESM import
+  ({ marked } = await import('marked'));
 } catch {
-  // Minimal Markdown -> HTML: **bold**, *italic*, lists, paragraphs
   marked = {
     parse(md = '') {
       md = String(md).replace(/\r\n?/g, '\n');
@@ -22,25 +21,16 @@ try {
 
       for (const raw of lines) {
         const line = raw.trimEnd();
-
-        // unordered list item?
         const m = line.match(/^[-*]\s+(.*)$/);
         if (m) {
           if (!listOpen) { out.push('<ul>'); listOpen = true; }
-          const li = esc(m[1])
-            .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g,'<em>$1</em>');
+          const li = esc(m[1]).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
           out.push(`<li>${li}</li>`);
           continue;
         }
-
         if (line.trim() === '') { flushList(); out.push(''); continue; }
-
-        // paragraph
         flushList();
-        const p = esc(line)
-          .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-          .replace(/\*(.+?)\*/g,'<em>$1</em>');
+        const p = esc(line).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
         out.push(`<p>${p}</p>`);
       }
       flushList();
@@ -72,7 +62,7 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-/* HTML attribute escape (names/notes/finish) */
+/* Escape for HTML attributes (names/notes/finishes) */
 function escAttr(s = '') {
   return String(s)
     .replace(/&/g,'&amp;')
@@ -97,7 +87,7 @@ function addDays(iso, days) {
   return d.toISOString().slice(0,10);
 }
 
-/* list files in a folder by extension (non-recursive) */
+/* list files (non-recursive) */
 async function listFiles(folder, exts = []) {
   const out = [];
   try {
@@ -120,17 +110,16 @@ function buildRawUrl(owner, repo, branch, relPath) {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-/* Build model URLs either from GH Raw (default) or local PUBLIC_BASE_URL */
+/* Make model URLs from GH Raw (default) or local PUBLIC_BASE_URL */
 function buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, mode = 'gh') {
   if (mode === 'local') {
     const base = PUBLIC.replace(/\/+$/,'');
     return relPaths.map(rel => `${base}${toWebPath(rel)}`);
   }
-  // default: gh
   return relPaths.map(rel => buildRawUrl(owner, repo, branch, rel));
 }
 
-/* Build a COMPLETE <iframe> element for the 3D viewer */
+/* ✅ Build a COMPLETE <iframe> element for the 3D viewer */
 function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSource = 'gh' }) {
   if (!relPaths.length) return '';
   const urls = buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, viewerSource);
@@ -150,7 +139,6 @@ function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSour
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  // RETURN A REAL IFRAME
   return `${src}" allowfullscreen></iframe>`;
 }
 
@@ -302,14 +290,14 @@ async function getNextRevision(outDir, leadId) {
   let MATERIAL_2_BLOCK = '';   // all remaining materials as blocks
 
   if (materialMeta.length > 0) {
-    // Material 1 — emit full <img>
+    // Material 1 — full <img>
     const m0 = materialMeta[0];
     const f0 = materialFiles[0] ? toWebUrl(path.relative(process.cwd(), materialFiles[0])) : '';
     MATERIAL_1_THUMB = `${f0}`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
-    // Material 2+ — emit blocks with full <img>
+    // Material 2+ — blocks with full <img>
     for (let i = 1; i < materialMeta.length; i++) {
       const mi = materialMeta[i];
       const fi = materialFiles[i] ? toWebUrl(path.relative(process.cwd(), materialFiles[i])) : '';
@@ -346,7 +334,7 @@ async function getNextRevision(outDir, leadId) {
     }
   }
 
-  /* Preflight (informational in drop-folder mode) */
+  /* Preflight (informational) */
   console.log('🔍 Preflight (Drop-Folder)…');
   if (!viewerFiles.length)   console.warn('⚠️ No 3D viewer files found in assets/viewer/');
   if (!materialFiles.length) console.warn('⚠️ No material swatches found in assets/materials/');
