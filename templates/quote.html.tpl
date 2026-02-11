@@ -81,8 +81,8 @@
     /* Our Expand FAB — slightly larger for touch, sits on top (z:3) */
     .fab-3d{
       position: absolute;
-      bottom: 16px;
-      right: 16px;
+      bottom: 10px;
+      right: 5px;
       width: 48px;
       height: 48px;
       border-radius: 50%;
