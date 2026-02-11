@@ -40,11 +40,9 @@ document.addEventListener("DOMContentLoaded", function(){
     if (viewerCover) viewerCover.style.display = 'none';
   }
 
-  thumbs.forEach(t => {
-    t.addEventListener('click', () => {
-      showLightbox(t.dataset.full || t.src);
-    });
-  });
+  thumbs.forEach(t => t.addEventListener('click', () => {
+    showLightbox(t.dataset.full || t.src);
+  }));
 
   lightboxExit?.addEventListener('click', hideLightbox);
   lightbox.addEventListener('click', e => { if (e.target === lightbox) hideLightbox(); });
@@ -53,22 +51,47 @@ document.addEventListener("DOMContentLoaded", function(){
     if (e.key === 'Escape') hideLightbox();
   });
 
+
   /* ---------------------------
    * FULLSCREEN 3D VIEWER
    * ------------------------- */
 
-  // Create a FAB mask for fullscreen (covers bottom-right viewer FAB)
-  function createFullscreenMask() {
-    const mask = document.createElement('div');
-    mask.style.position = 'absolute';
-    mask.style.bottom = '0';
-    mask.style.right = '0';
-    mask.style.width = '80px';   // generous coverage
-    mask.style.height = '80px';
-    mask.style.background = 'white'; // matches modal background
-    mask.style.pointerEvents = 'none';
-    mask.style.zIndex = '2';      // above iframe, below close button
-    return mask;
+  // Create FAB-style close button for fullscreen viewer
+  function createCloseFab() {
+    const btn = document.createElement('button');
+    btn.innerText = "×";
+    btn.setAttribute('aria-label', 'Close 3D Viewer');
+    btn.style.position = 'absolute';
+    btn.style.bottom = '4px';
+    btn.style.right = '4px';
+    btn.style.width = '54px';
+    btn.style.height = '54px';
+    btn.style.borderRadius = '50%';
+    btn.style.border = '1px solid var(--mid)';
+    btn.style.background = 'var(--white)';
+    btn.style.color = 'var(--black)';
+    btn.style.fontSize = '28px';
+    btn.style.display = 'flex';
+    btn.style.alignItems = 'center';
+    btn.style.justifyContent = 'center';
+    btn.style.cursor = 'pointer';
+    btn.style.zIndex = '6';
+    btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+    btn.style.transition = 'border-color .2s ease, box-shadow .2s ease, transform .1s ease';
+    btn.style.fontFamily = 'inherit';
+    btn.addEventListener('click', closeModal3D);
+    btn.addEventListener('mouseenter', () => {
+      btn.style.borderColor = 'var(--black)';
+      btn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.borderColor = 'var(--mid)';
+      btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+    });
+    btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.97)');
+    btn.addEventListener('mouseup', () => btn.style.transform = 'scale(1)');
+
+    return btn;
   }
 
   function openModal3D(){
@@ -77,20 +100,20 @@ document.addEventListener("DOMContentLoaded", function(){
 
     lastFocus = document.activeElement;
 
-    // Clone iframe
     clonedIframe = srcIframe.cloneNode(true);
     clonedIframe.setAttribute('loading','eager');
 
-    // Clear previous modal content
     modalContent.innerHTML = '';
 
-    // Insert iframe
+    // Place iframe
     modalContent.appendChild(clonedIframe);
 
-    // Insert FAB mask over iframe
-    modalContent.appendChild(createFullscreenMask());
+    // Add FAB-style close button
+    modalContent.appendChild(createCloseFab());
 
-    // Open modal
+    // Hide native close button in template (top-right)
+    if (closeBtn) closeBtn.style.display = 'none';
+
     modal.setAttribute('aria-hidden','false');
     document.body.style.overflow = 'hidden';
   }
@@ -101,14 +124,12 @@ document.addEventListener("DOMContentLoaded", function(){
     clonedIframe = null;
 
     document.body.style.overflow = '';
-
     if (viewerCover) viewerCover.style.display = 'none';
 
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
 
   openBtn?.addEventListener('click', openModal3D);
-  closeBtn?.addEventListener('click', closeModal3D);
   backdrop?.addEventListener('click', closeModal3D);
 
   document.addEventListener('keydown', e => {
