@@ -1,33 +1,19 @@
 document.addEventListener("DOMContentLoaded", function(){
 
-  /* ----------------------------------------------
-   * LIGHTBOX LOGIC (unchanged)
-   * ---------------------------------------------- */
-
+  /* ------------------------------------------------
+   * LIGHTBOX for images (thumbnails & swatches)
+   * ------------------------------------------------ */
   const lightbox    = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightbox-img');
   const lightboxExit= document.getElementById('lightbox-close');
   const viewerCover = document.getElementById('viewerCover');
-  const modal       = document.getElementById('modal3d');
-  const modalContent= document.getElementById('modal3dContent');
-  const backdrop    = document.getElementById('modal3dBackdrop');
-  const templateCloseBtn = document.getElementById('close3dFullscreen');
-
-  let clonedIframe = null;
-  let lastFocus = null;
-
-  const thumbs = document.querySelectorAll('.thumb, .swatch-thumb');
 
   function showLightbox(fullSrc){
-    if (modal.getAttribute('aria-hidden') === 'false'){
-      closeModal3D();
-    }
-    lightboxImg.src = fullSrc;
+    lightboxImg.src = fullSrc || '';
     lightbox.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     if (viewerCover) viewerCover.style.display = 'block';
   }
-
   function hideLightbox(){
     lightbox.style.display = 'none';
     lightboxImg.src = '';
@@ -35,21 +21,28 @@ document.addEventListener("DOMContentLoaded", function(){
     if (viewerCover) viewerCover.style.display = 'none';
   }
 
-  thumbs.forEach(t => {
-    t.addEventListener('click', () => showLightbox(t.dataset.full || t.src));
+  // Bind to image thumbnails and swatches
+  document.querySelectorAll('.thumb, .swatch-thumb').forEach(img => {
+    img.addEventListener('click', (e) => {
+      const full = img.getAttribute('data-full') || img.getAttribute('src');
+      if (full) showLightbox(full);
+    });
   });
-
   lightboxExit?.addEventListener('click', hideLightbox);
-  lightbox.addEventListener('click', e => { if (e.target === lightbox) hideLightbox(); });
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') hideLightbox();
-  });
+  lightbox?.addEventListener('click', (e) => { if (e.target === lightbox) hideLightbox(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideLightbox(); });
 
 
-  /* -------------------------------------------------------------
-   * FULLSCREEN 3D VIEWER — MULTI INSTANCE SUPPORT (v56)
-   * ------------------------------------------------------------- */
+  /* ------------------------------------------------
+   * FULLSCREEN 3D VIEWER — multi-instance, defensive
+   * ------------------------------------------------ */
+  const modal        = document.getElementById('modal3d');
+  const modalContent = document.getElementById('modal3dContent');
+  const backdrop     = document.getElementById('modal3dBackdrop');
+  const templateCloseBtn = document.getElementById('close3dFullscreen');
+
+  let clonedIframe = null;
+  let lastFocus    = null;
 
   function createCloseFab() {
     const btn = document.createElement('button');
@@ -87,20 +80,22 @@ document.addEventListener("DOMContentLoaded", function(){
       btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
     });
     btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.97)');
-    btn.addEventListener('mouseup', () => btn.style.transform = 'scale(1)');
-
+    btn.addEventListener('mouseup',   () => btn.style.transform = 'scale(1)');
     btn.addEventListener('click', closeModal3D);
+
     return btn;
   }
 
   function openModal3DFor(viewerWrap){
-    const iframe = viewerWrap.querySelector('.js-viewer-inline iframe');
-    if (!iframe) return;
+    if (!viewerWrap) return;
+    const inlineContainer = viewerWrap.querySelector('.js-viewer-inline');
+    const srcIframe = inlineContainer?.querySelector('iframe');
+    if (!srcIframe) return;
 
     lastFocus = document.activeElement;
 
-    clonedIframe = iframe.cloneNode(true);
-    clonedIframe.setAttribute('loading', 'eager');
+    clonedIframe = srcIframe.cloneNode(true);
+    clonedIframe.setAttribute('loading','eager');
 
     modalContent.innerHTML = '';
     modalContent.appendChild(clonedIframe);
@@ -119,20 +114,34 @@ document.addEventListener("DOMContentLoaded", function(){
 
     document.body.style.overflow = '';
     if (viewerCover) viewerCover.style.display = 'none';
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+
+    if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
   }
 
+  // Primary binding: explicit class
   document.querySelectorAll('.js-open3d').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const viewerWrap = btn.closest('.js-viewer');
-      if (viewerWrap) openModal3DFor(viewerWrap);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wrap = btn.closest('.js-viewer');
+      openModal3DFor(wrap);
     });
   });
 
-  backdrop?.addEventListener('click', closeModal3D);
+  // Defensive fallback: any .fab-3d inside a .js-viewer
+  document.querySelectorAll('.js-viewer .fab-3d').forEach(btn => {
+    if (!btn.classList.contains('js-open3d')) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wrap = btn.closest('.js-viewer');
+        openModal3DFor(wrap);
+      });
+    }
+  });
 
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false'){
+  // Backdrop & ESC close
+  backdrop?.addEventListener('click', closeModal3D);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') {
       closeModal3D();
     }
   });
