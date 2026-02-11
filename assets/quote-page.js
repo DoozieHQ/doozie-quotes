@@ -90,16 +90,30 @@
     }
 
     function closeModal3D(){
-      modal.setAttribute('aria-hidden', 'true');
-      modalContent.innerHTML = '';
-      clonedIframe = null;
+  modal.setAttribute('aria-hidden', 'true');
+  modalContent.innerHTML = '';
+  clonedIframe = null;
 
-      document.body.style.overflow = '';
+  document.body.style.overflow = '';
 
-      if (lastFocus && typeof lastFocus.focus === 'function') {
-        lastFocus.focus();
-      }
-    }
+  // FIX — hide cover after fullscreen close
+  const viewerCover = document.getElementById('viewerCover');
+  if (viewerCover) viewerCover.style.display = 'none';
+
+  if (lastFocus && typeof lastFocus.focus === 'function') {
+    lastFocus.focus();
+  }
+}
+
+openBtn.addEventListener('click', openModal3D);
+closeBtn?.addEventListener('click', closeModal3D);
+backdrop?.addEventListener('click', closeModal3D);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') {
+    closeModal3D();
+  }
+});
 
     openBtn.addEventListener('click', openModal3D);
     if (closeBtn)  closeBtn.addEventListener('click', closeModal3D);
