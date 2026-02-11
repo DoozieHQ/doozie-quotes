@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
+  <title>{{PROJECT_TITLE}} — Quote (Lead {{LEAD_ID}})</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
-  <!-- MAIN CSS -->
   <style>
     :root{
       --black:#101010;
@@ -136,10 +136,7 @@
     .footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--mid);text-align:center;font-size:0.85rem;color:var(--grey);}
   </style>
 
-  <!-- JS (defer to run after DOM is parsed) -->
   <script src="/assets/quote-page.js" defer></script>
-
-  <title>{{PROJECT_TITLE}} — Quote (Lead {{LEAD_ID}})</title>
 </head>
 
 <body>
@@ -230,14 +227,9 @@
       </div>
 
       <div class="swatch-grid">
-        <!-- Material 1 -->
+        <!-- Material 1 (URL tokens used in <img>) -->
         <figure class="swatch-card">
-          <img
-            class="swatch-thumb"
-            src="{{MATERIAL_1_THUMB}}"
-            data-full="{{MATERIAL_1_THUMB}}"
-            alt="{{MATERIAL_1_NAME}}"
-          />
+          <img class="swatch-thumb" src="{{MATERIAL_1_THUMB}}" data-full="{{MATERIAL_1_THUMB}}" alt="{{MATERIAL_1_NAME}}"/>
           <figcaption class="swatch-caption">
             <strong>{{MATERIAL_1_NAME}}</strong><br/>
             <span>{{MATERIAL_1_NOTES}}</span>

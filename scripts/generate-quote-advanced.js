@@ -1,20 +1,10 @@
-/**
- * scripts/generate-quote-advanced.js
- * Advanced generator with:
- * - full <iframe> for 3D viewer (embed endpoint, unencoded model list)
- * - path tokens for template <img> (doors, material_1)
- * - full <figure><img> blocks for material_2 and handle blocks
- * - URL-encoded HTML attribute values via toUrl() (spaces -> %20, etc.)
- * - preflight on unencoded filesystem paths
- * - formatted dates (DD Mon YYYY)
- */
-
 import 'dotenv/config';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import fetch from 'node-fetch';
+import { marked } from 'marked';
 
-// --------------------------------- small utils ---------------------------------
+/* ----------------------------- small utils ----------------------------- */
 function arg(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
   return (i !== -1 && process.argv[i + 1]) ? process.argv[i + 1] : fallback;
@@ -25,17 +15,20 @@ function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
 function isRelative(p) { return typeof p === 'string' && !p.startsWith('http') && !p.startsWith('/'); }
 
-// Encode only for HTML attribute output (spaces -> %20, etc).
-// Keep preflight using unencoded filesystem paths.
-function toUrl(p) {
-  return p ? encodeURI(p) : '';
+/* Root-absolute web paths */
+function toWebPath(rel) {
+  if (!rel) return '';
+  return '/' + toPosix(rel).replace(/^\/+/, '');
+}
+function toWebUrl(rel) {
+  return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-// ----- date helpers (international short format "10 Feb 2026") -----
+/* date helpers */
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatDateIntl(iso) {
   const d = iso ? new Date(iso) : new Date();
-  if (Number.isNaN(d.getTime())) return iso; // fallback to raw
+  if (Number.isNaN(d.getTime())) return iso;
   const day = String(d.getDate()).padStart(2,'0');
   const mon = MONTHS_SHORT[d.getMonth()];
   const year = d.getFullYear();
@@ -44,21 +37,36 @@ function formatDateIntl(iso) {
 function addDays(iso, days) {
   const d = iso ? new Date(iso) : new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0,10); // return ISO; we format later
+  return d.toISOString().slice(0,10);
 }
 
-// ------------------------- GH RAW builder -------------------------
+/* list files by extension (non-recursive for drop-folder) */
+async function listFiles(folder, exts = []) {
+  const out = [];
+  try {
+    const entries = await fs.readdir(folder, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      const ext = path.extname(e.name).toLowerCase();
+      if (!exts.length || exts.includes(ext)) {
+        out.push(toPosix(path.join(folder, e.name)));
+      }
+    }
+  } catch {}
+  return out;
+}
+
+/* GH raw for 3D viewer */
 function buildRawUrl(owner, repo, branch, relPath) {
   const clean = String(relPath).replace(/^\/+/, '');
   const encoded = clean.split('/').map(encodeURIComponent).join('/');
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-// ------------------------- 3D iframe (embed endpoint, no encoding of list) -------------------------
-function build3DViewerIframe(owner, repo, branch, filePaths) {
-  if (!Array.isArray(filePaths) || filePaths.length === 0) return '';
-
-  const urls = filePaths.map(p => buildRawUrl(owner, repo, branch, p)); // NOT encoded as a list
+/* 3D viewer iframe */
+function build3DViewerIframe(owner, repo, branch, viewerFiles) {
+  if (!viewerFiles.length) return '';
+  const urls = viewerFiles.map(p => buildRawUrl(owner, repo, branch, p));
   const modelList = urls.join(',');
 
   const camera =
@@ -75,36 +83,10 @@ function build3DViewerIframe(owner, repo, branch, filePaths) {
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-
-  // Return a full iframe element (absolute URL, so <base href="/"> won’t affect it)
   return `<iframe src="${src}" allowfullscreen></iframe>`;
 }
 
-// ------------------------- auto-discover viewer files -------------------------
-async function autoDiscoverViewerFiles(leadId) {
-  const base = path.resolve(process.cwd(), 'assets', 'leads', String(leadId), 'viewer');
-  const found = [];
-
-  async function walk(dir) {
-    let entries = [];
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      const abs = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        await walk(abs);
-      } else {
-        const ext = path.extname(e.name).toLowerCase();
-        if (ext === '.3ds' || ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
-          found.push(toPosix(path.relative(process.cwd(), abs)));
-        }
-      }
-    }
-  }
-  await walk(base);
-  return found;
-}
-
-// ------------------------- Kommo helpers -------------------------
+/* Kommo helpers */
 async function kommoGetLead(sub, tok, id) {
   const url = `https://${sub}.kommo.com/api/v4/leads/${id}?with=contacts`;
   const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tok}`, 'Accept': 'application/json' } });
@@ -128,7 +110,7 @@ async function kommoPatchLatestUrl(sub, tok, leadId, url, fieldId) {
   if (!res.ok) throw new Error(`Kommo PATCH error: ${res.status} ${await res.text()}`);
 }
 
-// ------------------------- HTML tokens -------------------------
+/* token replacer */
 function replaceTokens(tpl, map) {
   let out = tpl;
   for (const [k, v] of Object.entries(map)) {
@@ -137,7 +119,7 @@ function replaceTokens(tpl, map) {
   return out;
 }
 
-// ------------------------- revision numbering -------------------------
+/* revision helper */
 async function getNextRevision(outDir, leadId) {
   try {
     const files = await fs.readdir(outDir);
@@ -154,51 +136,7 @@ async function getNextRevision(outDir, leadId) {
   }
 }
 
-// ------------------------- Advanced preflight -------------------------
-const warnings = []; const errors = [];
-function warn(msg){ console.warn(`⚠️  ${msg}`); warnings.push(msg); }
-function err (msg){ console.error(`❌ ${msg}`); errors.push(msg); }
-
-async function fileExists(relPath){ if (!relPath) return false; try { await fs.access(relPath); return true; } catch { return false; } }
-async function sniffImageType(relPath){
-  try {
-    const fh = await fs.open(relPath, 'r'); const buf = Buffer.alloc(8);
-    await fh.read(buf, 0, 8, 0); await fh.close();
-    if (buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4E && buf[3]===0x47) return 'png';
-    if (buf[0]===0xFF && buf[1]===0xD8) return 'jpeg';
-    return 'unknown';
-  } catch { return 'unknown'; }
-}
-function requireRelative(p,label){ if (p && !isRelative(p)) warn(`${label}: path "${p}" is not relative. Prefer assets/... not /assets/...`); }
-function suggestNoSpaces(p,label){ if (/\s/.test(p)) warn(`${label}: "${p}" contains spaces. Prefer underscores for 3D viewer.`); }
-function suggestSafeBasename(p,label){ if (/%25|%20/i.test(p)) warn(`${label}: "${p}" looks URL-encoded. Prefer renaming file to avoid double-encoding.`); }
-
-async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], handles=[], viewerFiles=[] }) {
-  console.log('🔍 Preflight: verifying assets and structure…');
-  if (logoRel){ requireRelative(logoRel,'Logo'); if (!(await fileExists(logoRel))) err(`Missing logo file: ${logoRel}`); else { const t=await sniffImageType(logoRel); if (t==='unknown') warn(`Logo type unknown: ${logoRel}`);} }
-  if (doorsOnThumb){ requireRelative(doorsOnThumb,'Doors On thumb'); if (!(await fileExists(doorsOnThumb))) err(`Missing Doors On thumb: ${doorsOnThumb}`); }
-  if (doorsOffThumb){ requireRelative(doorsOffThumb,'Doors Off thumb'); if (!(await fileExists(doorsOffThumb))) err(`Missing Doors Off thumb: ${doorsOffThumb}`); }
-  for (const [i,m] of materials.entries()){ if (!m?.thumb) continue; requireRelative(m.thumb,`Material[${i}] thumb`); if (!(await fileExists(m.thumb))) err(`Missing Material[${i}] thumb: ${m.thumb}`); }
-  for (const [i,h] of handles.entries()){ if (!h?.thumb) continue; requireRelative(h.thumb,`Handle[${i}] thumb`); if (!(await fileExists(h.thumb))) err(`Missing Handle[${i}] thumb: ${h.thumb}`); }
-
-  const modelFiles = viewerFiles.filter(f=>/\.3ds$/i.test(f));
-  if (viewerFiles.length===0) warn('3D viewer: no files discovered under assets/leads/<LEAD_ID>/viewer/');
-  else {
-    if (modelFiles.length===0) err('3D viewer: no .3ds model found.');
-    viewerFiles.forEach(f=>{ suggestNoSpaces(f,'3D file'); suggestSafeBasename(f,'3D file'); });
-  }
-
-  if (errors.length){
-    console.error(`\n❌ Preflight failed with ${errors.length} error(s) and ${warnings.length} warning(s).`);
-    errors.forEach(e=>console.error(`   • ${e}`));
-    warnings.forEach(w=>console.warn(`   • ${w}`));
-    process.exit(1);
-  }
-  console.log(`✔ Preflight passed with ${warnings.length} warning(s).`);
-  if (warnings.length && hasFlag('--strict')) { console.error('❌ --strict mode: warnings considered fatal.'); process.exit(1); }
-}
-
-// --------------------------------------------- MAIN ---------------------------------------------
+/* --------------------------------------------- MAIN --------------------------------------------- */
 (async function main(){
   const GH_OWNER  = assertEnv('GH_OWNER');
   const GH_REPO   = assertEnv('GH_REPO');
@@ -217,30 +155,47 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
   const STRICT     = hasFlag('--strict');
 
   if (!dataFile){
-    console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>.json [--tpl templates/quote.html.tpl] [--out quotes] [--strict] [--skip-kommo]');
+    console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>/info.json [--tpl templates/quote.html.tpl]');
     process.exit(1);
   }
 
   const data   = JSON.parse(await fs.readFile(path.resolve(dataFile), 'utf8'));
   const leadId = String(data.leadId);
 
-  // Kommo data
+  /* Kommo meta */
   const lead = await kommoGetLead(KOMMO_SUB, KOMMO_TOK, leadId);
   const contacts = lead?._embedded?.contacts || [];
   let clientName = '', clientEmail = '';
   if (contacts.length){
     const c = await kommoGetContact(KOMMO_SUB, KOMMO_TOK, contacts[0].id);
     clientName = c.name || '';
-    const emailField = (c.custom_fields_values || []).find(f=>f.field_code==='EMAIL') ||
-                       (c.custom_fields_values || []).find(f=>String(f.field_name||'').toLowerCase().includes('email'));
+    const emailField = (c.custom_fields_values || []).find(f=>f.field_code==='EMAIL')
+                    || (c.custom_fields_values || []).find(f=>String(f.field_name||'').toLowerCase().includes('email'));
     clientEmail = emailField?.values?.[0]?.value || '';
   }
 
-  // 3D auto-discovery
-  const viewerFiles = await autoDiscoverViewerFiles(leadId);
-  const THREED_IFRAME_URL = viewerFiles.length ? build3DViewerIframe(GH_OWNER, GH_REPO, GH_BRANCH, viewerFiles) : '';
+  /* Drop-folder discovery */
+  const quoteDir  = path.dirname(path.resolve(dataFile));
+  const assetsDir = path.join(quoteDir, 'assets');
+  const viewerDir    = path.join(assetsDir, 'viewer');
+  const materialsDir = path.join(assetsDir, 'materials');
+  const handlesDir   = path.join(assetsDir, 'handles');
+  const doorsDir     = path.join(assetsDir, 'doorviews');
 
-  // Pricing
+  const viewerFiles   = await listFiles(viewerDir,    ['.3ds','.png','.jpg','.jpeg']);
+  const materialFiles = await listFiles(materialsDir, ['.png','.jpg','.jpeg']);
+  const handleFiles   = await listFiles(handlesDir,   ['.png','.jpg','.jpeg']);
+  const doorFiles     = await listFiles(doorsDir,     ['.png','.jpg','.jpeg']);
+
+  /* 3D viewer iframe token */
+  const THREED_IFRAME_URL = viewerFiles.length
+    ? build3DViewerIframe(GH_OWNER, GH_REPO, GH_BRANCH, viewerFiles.map(x => path.relative(process.cwd(), x)))
+    : '';
+
+  /* Markdown overview -> HTML */
+  const OVERVIEW_TEXT = data.overview ? marked.parse(data.overview) : '';
+
+  /* Pricing */
   const ccy = data.pricing?.currency || DEFAULT_CCY;
   const items = Array.isArray(data.pricing?.items) ? data.pricing.items : [];
   const vatRate = (typeof data.pricing?.vatRate === 'number') ? data.pricing.vatRate : 0.20;
@@ -248,102 +203,106 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
   const vat      = subtotal * vatRate;
   const total    = subtotal + vat;
 
-  // Paths for template tokens (plain paths for template <img>, encoded for HTML)
-  const pathFrom = (obj) => (obj?.thumb || obj?.full || '').replace(/^\//,'');
+  const LINE_ITEMS_HTML =
+    items.length ?
+    items.map(it => {
+      const qty = Number(it.qty||1);
+      const unit = Number(it.unit||0);
+      const line = qty * unit;
+      return `<tr>
+  <td>${it.name||''}</td>
+  <td class="num">${qty}</td>
+  <td class="num">${ccy}${money(unit)}</td>
+  <td class="num">${ccy}${money(line)}</td>
+</tr>`;
+    }).join('\n')
+    : `<tr><td colspan="4">No items.</td></tr>`;
 
-  // Main images (template wraps these in <img>)
-  const IMAGE_DOORSON_THUMB  = toUrl(pathFrom(data.images?.doorsOn));
-  const IMAGE_DOORSOFF_THUMB = toUrl(pathFrom(data.images?.doorsOff));
-
-  // Materials & handles
+  /* Materials (unlimited; order = JSON list) */
+  const materialMeta = Array.isArray(data.materials) ? data.materials : [];
   let MATERIAL_1_THUMB = '';
   let MATERIAL_1_NAME  = '';
   let MATERIAL_1_NOTES = '';
   let MATERIAL_2_BLOCK = '';
 
-  if (Array.isArray(data.materials) && data.materials.length > 0) {
-    const m0 = data.materials[0];
-    MATERIAL_1_THUMB = toUrl(pathFrom(m0));
+  if (materialMeta.length > 0) {
+    // Material 1
+    const m0 = materialMeta[0];
+    const f0 = materialFiles[0] ? toWebUrl(path.relative(process.cwd(), materialFiles[0])) : '';
+    MATERIAL_1_THUMB = `${f0}`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
-    if (data.materials[1]) {
-      const m1 = data.materials[1];
-      const m1Path = toUrl(pathFrom(m1));
-      MATERIAL_2_BLOCK = `
+    // Material 2+
+    for (let i = 1; i < materialMeta.length; i++) {
+      const mi = materialMeta[i];
+      const fi = materialFiles[i] ? toWebUrl(path.relative(process.cwd(), materialFiles[i])) : '';
+      MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${m1Path}" data-full="${m1Path}" alt="${m1?.name || ''}"/>
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${mi?.name || ''}"/>
   <figcaption class="swatch-caption">
-    <strong>${m1?.name || ''}</strong><br/>
-    <span>${m1?.notes || ''}</span>
+    <strong>${mi?.name || ''}</strong><br/>
+    <span>${mi?.notes || ''}</span>
   </figcaption>
 </figure>`;
     }
   }
 
+  /* Handles (unlimited; order = JSON list) */
+  const handleMeta = Array.isArray(data.handles) ? data.handles : [];
   let HANDLE_1_BLOCK = '';
   let HANDLE_2_BLOCK = '';
 
-  if (Array.isArray(data.handles) && data.handles.length > 0) {
-    const h0 = data.handles[0];
-    const h0Path = toUrl(pathFrom(h0));
-    HANDLE_1_BLOCK = `
+  if (handleMeta.length > 0) {
+    for (let i = 0; i < handleMeta.length; i++) {
+      const hi = handleMeta[i];
+      const fi = handleFiles[i] ? toWebUrl(path.relative(process.cwd(), handleFiles[i])) : '';
+      const block = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${h0Path}" data-full="${h0Path}" alt="${h0?.name || ''}"/>
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${hi?.name || ''}"/>
   <figcaption class="swatch-caption">
-    <strong>${h0?.name || ''}</strong><br/>
-    <span>${h0?.finish || ''}</span>
+    <strong>${hi?.name || ''}</strong><br/>
+    <span>${hi?.finish || hi?.notes || ''}</span>
   </figcaption>
 </figure>`;
-
-    if (data.handles[1]) {
-      const h1 = data.handles[1];
-      const h1Path = toUrl(pathFrom(h1));
-      HANDLE_2_BLOCK = `
-<figure class="swatch-card">
-  <img class="swatch-thumb" src="${h1Path}" data-full="${h1Path}" alt="${h1?.name || ''}"/>
-  <figcaption class="swatch-caption">
-    <strong>${h1?.name || ''}</strong><br/>
-    <span>${h1?.finish || ''}</span>
-  </figcaption>
-</figure>`;
+      if (i === 0) HANDLE_1_BLOCK = block;
+      else HANDLE_2_BLOCK += block;
     }
   }
 
-  // Preflight (uses raw paths, not URL-encoded)
-  await preflight({
-    logoRel: 'assets/logo.png',
-    doorsOnThumb:  pathFrom(data.images?.doorsOn),
-    doorsOffThumb: pathFrom(data.images?.doorsOff),
-    materials: (data.materials || []).map(m => ({ thumb: pathFrom(m) })),
-    handles:   (data.handles   || []).map(h => ({ thumb: pathFrom(h) })),
-    viewerFiles
-  });
+  /* Door views (optional) */
+  const IMAGE_DOORSON_THUMB  = doorFiles[0] ? toWebUrl(path.relative(process.cwd(), doorFiles[0])) : '';
+  const IMAGE_DOORSOFF_THUMB = doorFiles[1] ? toWebUrl(path.relative(process.cwd(), doorFiles[1])) : '';
 
-  // Revision and dates
+  /* Preflight (informational in drop-folder mode) */
+  console.log('🔍 Preflight (Drop-Folder)…');
+  if (!viewerFiles.length)   console.warn('⚠️ No 3D viewer files found in assets/viewer/');
+  if (!materialFiles.length) console.warn('⚠️ No material swatches found in assets/materials/');
+  if (!handleFiles.length)   console.warn('⚠️ No handle swatches found in assets/handles/');
+
+  /* Revision & dates */
   await fs.mkdir(outDir, { recursive: true });
   const revision  = await getNextRevision(outDir, leadId);
 
   const issueISO  = data.issueDate || new Date().toISOString().slice(0,10);
   const expiryISO = addDays(issueISO, 30);
-  const issueFmt  = formatDateIntl(issueISO);
-  const expiryFmt = formatDateIntl(expiryISO);
+  const ISSUE_DATE  = formatDateIntl(issueISO);
+  const EXPIRY_DATE = formatDateIntl(expiryISO);
 
-  // Build HTML
+  /* Build HTML */
   const tpl  = await fs.readFile(path.resolve(tplFile), 'utf8');
   const html = replaceTokens(tpl, {
     LEAD_ID: leadId,
     REVISION: revision,
-    PROJECT_TITLE: data.projectTitle || lead.name || `Lead ${leadId}`,
 
+    PROJECT_TITLE: data.projectTitle || lead.name || `Lead ${leadId}`,
     CLIENT_NAME: clientName,
     CLIENT_EMAIL: clientEmail,
 
-    ISSUE_DATE: issueFmt,
-    EXPIRY_DATE: expiryFmt,
+    ISSUE_DATE,
+    EXPIRY_DATE,
 
-    VALID_UNTIL: data.validUntil || '',
-    OVERVIEW_TEXT: data.overview || '',
+    OVERVIEW_TEXT,
 
     IMAGE_DOORSON_THUMB,
     IMAGE_DOORSOFF_THUMB,
@@ -354,23 +313,11 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
     MATERIAL_1_NAME,
     MATERIAL_1_NOTES,
     MATERIAL_2_BLOCK,
+
     HANDLE_1_BLOCK,
     HANDLE_2_BLOCK,
 
-    LINE_ITEMS_HTML: (items.length
-      ? items.map(it => {
-          const qty = Number(it.qty||1);
-          const unit = Number(it.unit||0);
-          const line = qty * unit;
-          return `<tr>
-  <td>${it.name||''}</td>
-  <td class="num">${qty}</td>
-  <td class="num">${ccy}${money(unit)}</td>
-  <td class="num">${ccy}${money(line)}</td>
-</tr>`;
-        }).join('\n')
-      : `<tr><td colspan="4">No items.</td></tr>`
-    ),
+    LINE_ITEMS_HTML,
     SUBTOTAL: money(subtotal),
     VAT_AMOUNT: money(vat),
     TOTAL: money(total),
@@ -391,8 +338,6 @@ async function preflight({ logoRel, doorsOnThumb, doorsOffThumb, materials=[], h
     console.log('ℹ Kommo PATCH skipped (--skip-kommo).');
   }
 
-  if (STRICT && warnings.length) {
-    console.error('❌ --strict mode: finishing with warnings is not allowed.');
-    process.exit(1);
-  }
+  if (STRICT) console.log('✔ STRICT mode on (warnings allowed)');
+
 })().catch(e => { console.error(e); process.exit(1); });
