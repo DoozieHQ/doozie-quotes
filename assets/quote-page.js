@@ -7,10 +7,14 @@
   const lightbox     = document.getElementById('lightbox');
   const lightboxImg  = document.getElementById('lightbox-img');
   const lightboxExit = document.getElementById('lightbox-close');
+  const viewerCover  = document.getElementById('viewerCover');
+  const fabShield    = document.getElementById('fabShield');
+
+  let thumbs = [];
 
   if (lightbox && lightboxImg) {
 
-    const thumbs = document.querySelectorAll('.thumb, .swatch-thumb');
+    thumbs = document.querySelectorAll('.thumb, .swatch-thumb');
 
     thumbs.forEach(t => {
       t.addEventListener('click', () => {
@@ -20,6 +24,10 @@
         lightboxImg.src = full;
         lightbox.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+
+        // COVER THE 3D VIEWER
+        if (viewerCover) viewerCover.style.display = 'block';
+        if (fabShield) fabShield.classList.add('viewer-fab-shield-active');
       });
     });
 
@@ -27,6 +35,10 @@
       lightbox.style.display = 'none';
       lightboxImg.src = '';
       document.body.style.overflow = '';
+
+      // UNCOVER THE 3D VIEWER
+      if (viewerCover) viewerCover.style.display = 'none';
+      if (fabShield) fabShield.classList.remove('viewer-fab-shield-active');
     }
 
     if (lightboxExit) lightboxExit.addEventListener('click', hideLightbox);
