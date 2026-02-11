@@ -1,4 +1,4 @@
-(function(){
+document.addEventListener("DOMContentLoaded", function() {
 
   /* -------------------------------------------------
    * IMAGE LIGHTBOX
@@ -126,4 +126,4 @@ document.addEventListener('keydown', (e) => {
     });
   }
 
-})();
+});
