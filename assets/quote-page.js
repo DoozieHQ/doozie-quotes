@@ -57,42 +57,54 @@ document.addEventListener("DOMContentLoaded", function(){
    * ------------------------- */
 
   // Create FAB-style close button for fullscreen viewer
-  function createCloseFab() {
-    const btn = document.createElement('button');
-    btn.innerText = "×";
-    btn.setAttribute('aria-label', 'Close 3D Viewer');
-    btn.style.position = 'absolute';
-    btn.style.bottom = '4px';
-    btn.style.right = '4px';
-    btn.style.width = '54px';
-    btn.style.height = '54px';
-    btn.style.borderRadius = '50%';
-    btn.style.border = '1px solid var(--mid)';
-    btn.style.background = 'var(--white)';
-    btn.style.color = 'var(--black)';
-    btn.style.fontSize = '28px';
-    btn.style.display = 'flex';
-    btn.style.alignItems = 'center';
-    btn.style.justifyContent = 'center';
-    btn.style.cursor = 'pointer';
-    btn.style.zIndex = '6';
-    btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    btn.style.transition = 'border-color .2s ease, box-shadow .2s ease, transform .1s ease';
-    btn.style.fontFamily = 'inherit';
-    btn.addEventListener('click', closeModal3D);
-    btn.addEventListener('mouseenter', () => {
-      btn.style.borderColor = 'var(--black)';
-      btn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.borderColor = 'var(--mid)';
-      btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    });
-    btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.97)');
-    btn.addEventListener('mouseup', () => btn.style.transform = 'scale(1)');
+function createCloseFab() {
+  const btn = document.createElement('button');
+  btn.innerText = "✕"; // close icon matching inline style weight
+  btn.setAttribute('aria-label', 'Close 3D Viewer');
 
-    return btn;
-  }
+  // COPY THE INLINE FAB EXACTLY (style match 1:1)
+  Object.assign(btn.style, {
+    position: 'absolute',
+    bottom: '4px',
+    right: '4px',
+    width: '54px',
+    height: '54px',
+    borderRadius: '50%',
+    border: '1px solid var(--mid)',
+    background: 'var(--white)',
+    color: 'var(--black)',
+    fontSize: '26px',
+    lineHeight: '1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    zIndex: '6',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    transition: 'border-color .2s ease, box-shadow .2s ease, transform .1s ease',
+    fontFamily: 'inherit'
+  });
+
+  // HOVER LIFT (same as inline FAB)
+  btn.addEventListener('mouseenter', () => {
+    btn.style.borderColor = 'var(--black)';
+    btn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+  });
+
+  btn.addEventListener('mouseleave', () => {
+    btn.style.borderColor = 'var(--mid)';
+    btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+  });
+
+  // ACTIVE PRESS FEEL
+  btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.97)');
+  btn.addEventListener('mouseup',   () => btn.style.transform = 'scale(1)');
+
+  // CLICK HANDLER
+  btn.addEventListener('click', closeModal3D);
+
+  return btn;
+}
 
   function openModal3D(){
     const srcIframe = inlineViewer.querySelector('iframe');
