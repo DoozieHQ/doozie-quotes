@@ -63,9 +63,9 @@ document.addEventListener("DOMContentLoaded", function(){
     mask.style.position = 'absolute';
     mask.style.bottom = '0';
     mask.style.right = '0';
-    mask.style.width = '160px';   // generous coverage
-    mask.style.height = '160px';
-    mask.style.background = 'black'; // matches modal background
+    mask.style.width = '80px';   // generous coverage
+    mask.style.height = '80px';
+    mask.style.background = 'white'; // matches modal background
     mask.style.pointerEvents = 'none';
     mask.style.zIndex = '2';      // above iframe, below close button
     return mask;
