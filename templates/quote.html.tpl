@@ -312,6 +312,7 @@
   </div>
 
   <!-- SCRIPT -->
+  <script>console.log("JS running");</script>
   <script>
   (function(){
 
