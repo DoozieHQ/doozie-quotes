@@ -90,20 +90,20 @@
     }
 
     function closeModal3D(){
-  modal.setAttribute('aria-hidden', 'true');
-  modalContent.innerHTML = '';
-  clonedIframe = null;
+    modal.setAttribute('aria-hidden', 'true');
+    modalContent.innerHTML = '';
+    clonedIframe = null;
 
-  document.body.style.overflow = '';
+    document.body.style.overflow = '';
 
-  // FIX — hide cover after fullscreen close
-  const viewerCover = document.getElementById('viewerCover');
-  if (viewerCover) viewerCover.style.display = 'none';
+    // HIDE COVER
+    const viewerCover = document.getElementById('viewerCover');
+    if (viewerCover) viewerCover.style.display = 'none';
 
-  if (lastFocus && typeof lastFocus.focus === 'function') {
-    lastFocus.focus();
+    if (lastFocus && typeof lastFocus.focus === 'function') {
+        lastFocus.focus();
+    }
   }
-}
 
 openBtn.addEventListener('click', openModal3D);
 closeBtn?.addEventListener('click', closeModal3D);
