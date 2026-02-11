@@ -72,6 +72,15 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
+/* Escape for HTML attributes */
+function escAttr(s = '') {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
 /* dates */
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatDateIntl(iso) {
@@ -111,10 +120,20 @@ function buildRawUrl(owner, repo, branch, relPath) {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
+/* Build model URLs either from GH Raw (default) or local PUBLIC_BASE_URL */
+function buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, mode = 'gh') {
+  if (mode === 'local') {
+    const base = PUBLIC.replace(/\/+$/,'');
+    return relPaths.map(rel => `${base}${toWebPath(rel)}`);
+  }
+  // default: gh
+  return relPaths.map(rel => buildRawUrl(owner, repo, branch, rel));
+}
+
 /* Build a COMPLETE <iframe> element for the 3D viewer */
-function build3DViewerIframe(owner, repo, branch, viewerFiles) {
-  if (!viewerFiles.length) return '';
-  const urls = viewerFiles.map(p => buildRawUrl(owner, repo, branch, p));
+function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSource = 'gh' }) {
+  if (!relPaths.length) return '';
+  const urls = buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, viewerSource);
   const modelList = urls.join(',');
 
   const camera =
@@ -193,8 +212,9 @@ async function getNextRevision(outDir, leadId) {
   const KOMMO_SUB = assertEnv('KOMMO_SUBDOMAIN');
   const KOMMO_TOK = assertEnv('KOMMO_TOKEN');
   const LATEST_ID = assertEnv('KOMMO_LATEST_URL_FIELD_ID');
-  const PUBLIC    = assertEnv('PUBLIC_BASE_URL');
+  const PUBLIC    = assertEnv('PUBLIC_BASE_URL'); // e.g. https://quotes.doozie.co
   const DEFAULT_CCY = process.env.DEFAULT_CURRENCY || '£';
+  const VIEWER_SOURCE = (process.env.VIEWER_SOURCE || 'gh').toLowerCase(); // 'gh' or 'local'
 
   const dataFile = arg('--data');
   const tplFile  = arg('--tpl', 'templates/quote.html.tpl');
@@ -234,9 +254,17 @@ async function getNextRevision(outDir, leadId) {
   const materialFiles = await listFiles(materialsDir, ['.png','.jpg','.jpeg']);
   const handleFiles   = await listFiles(handlesDir,   ['.png','.jpg','.jpeg']);
 
-  /* 3D viewer iframe token (GH raw URLs) */
-  const THREED_IFRAME_URL = viewerFiles.length
-    ? build3DViewerIframe(GH_OWNER, GH_REPO, GH_BRANCH, viewerFiles.map(x => path.relative(process.cwd(), x)))
+  /* 3D viewer iframe token */
+  const relViewerPaths = viewerFiles.map(x => path.relative(process.cwd(), x));
+  const THREED_IFRAME_URL = relViewerPaths.length
+    ? build3DViewerIframe({
+        owner: GH_OWNER,
+        repo: GH_REPO,
+        branch: GH_BRANCH,
+        relPaths: relViewerPaths,
+        PUBLIC,
+        viewerSource: VIEWER_SOURCE
+      })
     : '';
 
   /* Markdown overview -> HTML */
@@ -288,8 +316,8 @@ async function getNextRevision(outDir, leadId) {
 <figure class="swatch-card">
   ${fi}
   <figcaption class="swatch-caption">
-    <strong>${mi?.name || ''}</strong><br/>
-    <span>${mi?.notes || ''}</span>
+    <strong>${escAttr(mi?.name || '')}</strong><br/>
+    <span>${escAttr(mi?.notes || '')}</span>
   </figcaption>
 </figure>`;
     }
@@ -308,8 +336,8 @@ async function getNextRevision(outDir, leadId) {
 <figure class="swatch-card">
   ${fi}
   <figcaption class="swatch-caption">
-    <strong>${hi?.name || ''}</strong><br/>
-    <span>${hi?.finish || hi?.notes || ''}</span>
+    <strong>${escAttr(hi?.name || '')}</strong><br/>
+    <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
   </figcaption>
 </figure>`;
       if (i === 0) HANDLE_1_BLOCK = block;
@@ -322,6 +350,7 @@ async function getNextRevision(outDir, leadId) {
   if (!viewerFiles.length)   console.warn('⚠️ No 3D viewer files found in assets/viewer/');
   if (!materialFiles.length) console.warn('⚠️ No material swatches found in assets/materials/');
   if (!handleFiles.length)   console.warn('⚠️ No handle swatches found in assets/handles/');
+  console.log(`ℹ️  3D model URL source: ${VIEWER_SOURCE === 'local' ? 'LOCAL (PUBLIC_BASE_URL)' : 'GitHub Raw'}`);
 
   /* Revision & dates */
   await fs.mkdir(outDir, { recursive: true });
