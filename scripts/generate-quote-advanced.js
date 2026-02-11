@@ -10,7 +10,7 @@ let marked;
 try {
   ({ marked } = await import('marked'));
 } catch {
-  // Minimal Markdown -> HTML (bold **…**, italic *…*, <ul>/<li>, <p>)
+  // Minimal Markdown -> HTML (bold **...**, italic *...*, <ul>/<li>, <p>)
   marked = {
     parse(md = '') {
       md = String(md).replace(/\r\n?/g, '\n');
@@ -25,7 +25,7 @@ try {
       for (const raw of lines) {
         const line = raw.trimEnd();
 
-        // list?
+        // list item?
         const m = line.match(/^[-*]\s+(.*)$/);
         if (m) {
           if (!listOpen) { out.push('<ul>'); listOpen = true; }
@@ -60,13 +60,13 @@ function arg(flag, fallback = null) {
 function hasFlag(flag) { return process.argv.includes(flag); }
 function assertEnv(name) {
   const v = process.env[name];
-  if (!v) { console.error(`❌ Missing env: ${name}`); process.exit(1); }
+  if (!v) { console.error(`Missing env: ${name}`); process.exit(1); }
   return v;
 }
 function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
 
-/* Root-absolute web paths for on-site files copied into /assets/... */
+/* Root-absolute web paths (for files copied into /assets/...) */
 function toWebPath(rel) {
   if (!rel) return '';
   return '/' + toPosix(rel).replace(/^\/+/, '');
@@ -133,12 +133,14 @@ function ghRaw(owner, repo, branch, repoRelPath) {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-/* ✅ Build a COMPLETE <iframe> for the 3D viewer using GH Raw repo paths */
-function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, basenames = [] }) {
-  if (!Array.isArray(basenames) || basenames.length === 0) return '';
-  const repoDir = `assets/leads/${leadId}/viewer`;  // files must be committed here
-  const urls = basenames.map(fn => ghRaw(owner, repo, branch, `${repoDir}/${fn}`));
-  const modelList = urls.join(',');
+/* Build a COMPLETE <iframe> for the 3D viewer using GH Raw repo paths */
+function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, repoRelPaths = [] }) {
+  if (!Array.isArray(repoRelPaths) || repoRelPaths.length === 0) return '';
+
+  const urls = repoRelPaths.map(rel =>
+    ghRaw(owner, repo, branch, `assets/leads/${leadId}/viewer/${rel}`)
+  );
+  const modelList = urls.map(u => encodeURI(u)).join(',');
 
   const camera =
     '$camera=4371.47575,1888.79862,-1873.12939,' +
@@ -154,8 +156,8 @@ function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, basenames = 
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  // Return a full iframe element (opening + closing tag)
-  return `<iframe src="${src}" loading="lazy" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>`;
+  // IMPORTANT: return a full iframe element
+  return `<iframe src="${src}" allowfullscreen></iframe>`;
 }
 
 /* Kommo helpers */
@@ -258,15 +260,16 @@ async function getNextRevision(outDir, leadId) {
   const materialFilesAbs = (await listFiles(materialsDir, ['.png','.jpg','.jpeg'])).map(p => path.resolve(p));
   const handleFilesAbs   = (await listFiles(handlesDir,   ['.png','.jpg','.jpeg'])).map(p => path.resolve(p));
 
-  /* 3D viewer token — from GH Raw repo paths (commit/push these paths!) */
-  const viewerBasenames = viewerFilesAbs.map(p => path.basename(p));
-  const THREED_IFRAME_URL = viewerBasenames.length
+  /* 3D viewer token — keep RELATIVE paths under viewer/ to preserve sub-folders */
+  const viewerRelPaths = viewerFilesAbs.map(abs => toPosix(path.relative(viewerDir, abs)));
+
+  const THREED_IFRAME_URL = viewerRelPaths.length
     ? build3DViewerIframeFromRepo({
         owner: GH_OWNER,
         repo: GH_REPO,
         branch: GH_BRANCH,
         leadId,
-        basenames: viewerBasenames
+        repoRelPaths: viewerRelPaths
       })
     : '';
 
@@ -298,25 +301,22 @@ async function getNextRevision(outDir, leadId) {
 
   /* Materials (unlimited; order = JSON) — copy into /assets/leads/<leadId>/materials/ */
   const materialMeta = Array.isArray(data.materials) ? data.materials : [];
-  let MATERIAL_1_THUMB = '';   // FULL <img> element
+  let MATERIAL_1_THUMB = '';   // URL string (template wraps it in <img>)
   let MATERIAL_1_NAME  = '';
   let MATERIAL_1_NOTES = '';
-  let MATERIAL_2_BLOCK = '';   // remaining materials as blocks
+  let MATERIAL_2_BLOCK = '';   // remaining materials as blocks (<figure> with <img>)
 
   if (materialMeta.length > 0) {
     const pubMatDir = path.resolve('assets','leads',leadId,'materials');
 
-    // Material 1 — emit a full <img>
+    // Material 1 — URL only (template uses {{MATERIAL_1_THUMB}})
     const m0 = materialMeta[0];
     const f0 = materialFilesAbs[0]
       ? toWebUrl(path.relative(process.cwd(), await copyFileTo(materialFilesAbs[0], pubMatDir)))
       : '';
+    MATERIAL_1_THUMB = f0;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
-    MATERIAL_1_THUMB =
-      f0
-        ? `${f0}`
-        : '';
 
     // Material 2+ — full <figure> blocks with <img>
     for (let i = 1; i < materialMeta.length; i++) {
@@ -326,7 +326,7 @@ async function getNextRevision(outDir, leadId) {
         : '';
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  ${fi}
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(mi?.name || '')}"/>
   <figcaption class="swatch-caption">
     <strong>${escAttr(mi?.name || '')}</strong><br/>
     <span>${escAttr(mi?.notes || '')}</span>
@@ -350,7 +350,7 @@ async function getNextRevision(outDir, leadId) {
         : '';
       const block = `
 <figure class="swatch-card">
-  ${fi}
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(hi?.name || '')}"/>
   <figcaption class="swatch-caption">
     <strong>${escAttr(hi?.name || '')}</strong><br/>
     <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
@@ -362,11 +362,11 @@ async function getNextRevision(outDir, leadId) {
   }
 
   /* Preflight (informational) */
-  console.log('🔍 Preflight…');
-  if (!viewerFilesAbs.length)   console.warn('⚠️ No 3D viewer files found in data/.../assets/viewer/');
-  if (!materialFilesAbs.length) console.warn('⚠️ No material swatches found in data/.../assets/materials/');
-  if (!handleFilesAbs.length)   console.warn('⚠️ No handle swatches found in data/.../assets/handles/');
-  console.log(`ℹ️ 3D models/textures must exist in repo at: assets/leads/${leadId}/viewer/ (for GH Raw import).`);
+  console.log('Preflight:');
+  if (!viewerFilesAbs.length)   console.warn(' - No 3D viewer files found in data/.../assets/viewer/');
+  if (!materialFilesAbs.length) console.warn(' - No material swatches found in data/.../assets/materials/');
+  if (!handleFilesAbs.length)   console.warn(' - No handle swatches found in data/.../assets/handles/');
+  console.log(`3D files must exist in repo at: assets/leads/${leadId}/viewer/<relative-path> (for GH Raw import).`);
 
   /* Revision & dates */
   await fs.mkdir(outDir, { recursive: true });
@@ -413,16 +413,17 @@ async function getNextRevision(outDir, leadId) {
   await fs.writeFile(outPath, html, 'utf8');
   const publicUrl = `${PUBLIC.replace(/\/+$/,'')}/quotes/${leadId}_v${revision}.html`;
 
-  console.log(`✔ Generated: ${outPath}`);
-  console.log(`✔ Public URL: ${publicUrl}`);
+  console.log(`Generated: ${outPath}`);
+  console.log(`Public URL: ${publicUrl}`);
 
   if (!SKIP_KOMMO) {
     await kommoPatchLatestUrl(KOMMO_SUB, KOMMO_TOK, leadId, publicUrl, LATEST_ID);
-    console.log('✔ Kommo Latest Quote URL updated.');
+    console.log('Kommo Latest Quote URL updated.');
   } else {
-    console.log('ℹ Kommo PATCH skipped (--skip-kommo).');
+    console.log('Kommo PATCH skipped (--skip-kommo).');
   }
 
-  if (STRICT) console.log('✔ STRICT mode on (warnings allowed)');
-
+  if (STRICT) {
+    console.log('STRICT mode on (warnings allowed)');
+  }
 })().catch(e => { console.error(e); process.exit(1); });
