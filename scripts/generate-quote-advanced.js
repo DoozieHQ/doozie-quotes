@@ -20,14 +20,12 @@ try {
       const lines = md.split('\n');
       const out = [];
       let listOpen = false;
-      const flushList = () => {
-        if (listOpen) { out.push('</ul>'); listOpen = false; }
-      };
+      const flushList = () => { if (listOpen) { out.push('</ul>'); listOpen = false; } };
 
       for (const raw of lines) {
         const line = raw.trimEnd();
 
-        // list item?
+        // list?
         const m = line.match(/^[-*]\s+(.*)$/);
         if (m) {
           if (!listOpen) { out.push('<ul>'); listOpen = true; }
@@ -50,7 +48,7 @@ try {
       }
       flushList();
       return out.join('\n');
-    },
+    }
   };
 }
 
@@ -68,7 +66,7 @@ function assertEnv(name) {
 function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
 
-/* Root-absolute web paths for on-site files we copy into /assets/... */
+/* Root-absolute web paths for on-site files copied into /assets/... */
 function toWebPath(rel) {
   if (!rel) return '';
   return '/' + toPosix(rel).replace(/^\/+/, '');
@@ -77,7 +75,7 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-/* Escape for HTML attributes (single-escape only) */
+/* single-escape attr text */
 function escAttr(s = '') {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -138,7 +136,7 @@ function ghRaw(owner, repo, branch, repoRelPath) {
 /* ✅ Build a COMPLETE <iframe> for the 3D viewer using GH Raw repo paths */
 function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, basenames = [] }) {
   if (!Array.isArray(basenames) || basenames.length === 0) return '';
-  const repoDir = `assets/leads/${leadId}/viewer`;  // you must commit & push files here
+  const repoDir = `assets/leads/${leadId}/viewer`;  // files must be committed here
   const urls = basenames.map(fn => ghRaw(owner, repo, branch, `${repoDir}/${fn}`));
   const modelList = urls.join(',');
 
@@ -156,8 +154,8 @@ function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, basenames = 
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  // Full, valid iframe element
-  return `<iframe src="${src}" style="width:100%;height:100%;border:0;" loading="lazy" allowfullscreen></iframe>`;
+  // Return a full iframe element (opening + closing tag)
+  return `<iframe src="${src}" loading="lazy" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>`;
 }
 
 /* Kommo helpers */
@@ -308,7 +306,7 @@ async function getNextRevision(outDir, leadId) {
   if (materialMeta.length > 0) {
     const pubMatDir = path.resolve('assets','leads',leadId,'materials');
 
-    // Material 1 (emit a full <img>)
+    // Material 1 — emit a full <img>
     const m0 = materialMeta[0];
     const f0 = materialFilesAbs[0]
       ? toWebUrl(path.relative(process.cwd(), await copyFileTo(materialFilesAbs[0], pubMatDir)))
@@ -317,10 +315,10 @@ async function getNextRevision(outDir, leadId) {
     MATERIAL_1_NOTES = m0?.notes || '';
     MATERIAL_1_THUMB =
       f0
-        ? `<img class="swatch-thumb" src="${f0}" data-full="${f0}" alt="${escAttr(MATERIAL_1_NAME || 'Material 1')}">`
+        ? `${f0}`
         : '';
 
-    // Material 2+ (emit full <figure> blocks with <img>)
+    // Material 2+ — full <figure> blocks with <img>
     for (let i = 1; i < materialMeta.length; i++) {
       const mi = materialMeta[i];
       const fi = materialFilesAbs[i]
@@ -328,7 +326,7 @@ async function getNextRevision(outDir, leadId) {
         : '';
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(mi?.name || `Material ${i+1}`)}">
+  ${fi}
   <figcaption class="swatch-caption">
     <strong>${escAttr(mi?.name || '')}</strong><br/>
     <span>${escAttr(mi?.notes || '')}</span>
@@ -352,7 +350,7 @@ async function getNextRevision(outDir, leadId) {
         : '';
       const block = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(hi?.name || `Handle ${i+1}`)}">
+  ${fi}
   <figcaption class="swatch-caption">
     <strong>${escAttr(hi?.name || '')}</strong><br/>
     <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
@@ -368,7 +366,7 @@ async function getNextRevision(outDir, leadId) {
   if (!viewerFilesAbs.length)   console.warn('⚠️ No 3D viewer files found in data/.../assets/viewer/');
   if (!materialFilesAbs.length) console.warn('⚠️ No material swatches found in data/.../assets/materials/');
   if (!handleFilesAbs.length)   console.warn('⚠️ No handle swatches found in data/.../assets/handles/');
-  console.log(`ℹ️ 3D models/textures expected at GH Raw: assets/leads/${leadId}/viewer/<files>`);
+  console.log(`ℹ️ 3D models/textures must exist in repo at: assets/leads/${leadId}/viewer/ (for GH Raw import).`);
 
   /* Revision & dates */
   await fs.mkdir(outDir, { recursive: true });
