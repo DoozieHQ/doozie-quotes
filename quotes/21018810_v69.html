@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Grahams Home Office — Quote (Lead 21018810)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root{
+      --black:#101010;
+      --grey:#555;
+      --mid:#e5e5e5;
+      --light:#f9f9f9;
+      --white:#ffffff;
+      --accent:#ffc700;
+
+      --page-width:1000px;
+      --rounded:16px;
+      --font:"Poppins", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:var(--font);
+      background:var(--white);
+      color:var(--black);
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* HEADER */
+    .header{width:100%;background:var(--light);border-bottom:1px solid var(--mid);}
+    .header-inner{max-width:var(--page-width);margin:auto;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;}
+    .header-left{display:flex;align-items:center;gap:20px;}
+    .logo{height:50px;object-fit:contain;}
+    .rev-badge{background:var(--white);border:1px solid var(--mid);border-radius:999px;padding:6px 18px;font-size:0.9rem;font-weight:600;}
+
+    /* WRAP */
+    .wrap{max-width:var(--page-width);margin:40px auto 80px;padding:0 28px;}
+
+    /* TITLES */
+    .title-block{margin-bottom:32px;}
+    .title{font-size:2.4rem;font-weight:600;line-height:1.2;margin-bottom:8px;}
+
+    /* SECTIONS */
+    .section{border:1px solid var(--mid);border-radius:var(--rounded);background:var(--white);padding:28px;margin-bottom:30px;box-shadow:0 4px 16px rgba(0,0,0,0.05);}
+    .section h2{font-size:1.4rem;font-weight:600;margin-bottom:18px;}
+    .meta-2col{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+    .meta-label{font-weight:600;font-size:0.95rem;margin-bottom:4px;}
+    .meta-value{color:var(--grey);font-size:0.95rem;line-height:1.4;}
+    .meta-value a{color:var(--black);text-decoration:none;border-bottom:1px solid var(--mid);}
+    .meta-value a:hover{border-bottom-color:var(--black);}
+
+    /* 3D VIEWER */
+    .viewer-wrap{position:relative;}
+    .viewer{position:relative;height:520px;}
+    .viewer iframe{position:absolute; inset:0; width:100%; height:100%; border:0; z-index:1;}
+
+    .fab-3d{
+      position:absolute;
+      bottom:4px; right:4px;
+      width:54px; height:54px;
+      border-radius:50%;
+      border:1px solid var(--mid);
+      background:var(--white); color:var(--black);
+      font-size:22px; line-height:1;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; z-index:6;
+      box-shadow:0 2px 8px rgba(0,0,0,0.15);
+      transition:border-color .2s ease, box-shadow .2s ease, transform .1s ease;
+    }
+    .fab-3d:hover{ border-color:var(--black); box-shadow:0 6px 16px rgba(0,0,0,0.2); }
+    .fab-3d:active{ transform:scale(0.98); }
+
+    .fab-shield{
+      position:absolute;
+      bottom:12px; right:12px;
+      width:70px; height:70px;
+      background:transparent;
+      pointer-events:auto;
+      z-index:5;
+    }
+
+    /* SWATCHES */
+    .subhead{font-size:1.1rem;font-weight:600;margin-top:26px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+    .subhead-line{height:2px;background:var(--accent);width:60px;border-radius:2px;}
+
+    .swatch-grid{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+    @media(min-width:720px){.swatch-grid{grid-template-columns:repeat(4,1fr);} }
+
+    .swatch-card{
+      background:var(--white);
+      border:1px solid var(--mid);
+      border-radius:var(--rounded);
+      padding:14px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .swatch-thumb{
+      display:block;width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;
+      border-radius:12px;border:1px solid var(--mid);cursor:pointer;transition:.25s ease;
+    }
+    .swatch-thumb:hover{transform:scale(1.03);}
+    .swatch-caption{margin-top:10px;font-size:0.9rem;color:var(--grey);}
+
+    /* LIGHTBOX */
+    .lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;justify-content:center;align-items:center;}
+    .lightbox img{max-width:90%;max-height:90%;border-radius:var(--rounded);box-shadow:0 10px 40px rgba(0,0,0,0.6);}
+    .lightbox-close{position:absolute;top:24px;right:36px;font-size:40px;font-weight:200;color:white;cursor:pointer;}
+
+    /* FULLSCREEN MODAL */
+    .modal3d{position:fixed;inset:0;display:none;z-index:99999;}
+    .modal3d[aria-hidden="false"]{display:block;}
+    .modal3d-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.85);}
+    .modal3d-dialog{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:24px;}
+    .modal3d-close{
+      position:absolute;top:22px;right:28px;font-size:34px;background:none;border:0;color:white;cursor:pointer;z-index:2;
+    }
+    .modal3d-content{
+      position:relative;width:100%;height:100%;max-width:1400px;max-height:90vh;
+      border:1px solid var(--mid);border-radius:16px;overflow:hidden;background:black;
+    }
+    .modal3d-content iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+
+    /* PRICING TABLE */
+    table{width:100%;border-collapse:collapse;margin-top:10px;}
+    th{background:var(--light);text-align:left;padding:12px;border-bottom:1px solid var(--mid);font-size:0.95rem;font-weight:600;}
+    td{padding:12px;border-bottom:1px solid var(--mid);font-size:0.95rem;}
+    .num{text-align:right;}
+    tfoot td{font-weight:600;}
+    .total-row td{font-size:1.15rem;font-weight:700;}
+
+    /* FOOTER */
+    .footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--mid);text-align:center;font-size:0.85rem;color:var(--grey);}
+  </style>
+
+  <script src="/assets/quote-page.js" defer></script>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-inner">
+      <div class="header-left">
+        <img class="logo" src="/assets/logo.png" alt="Doozie logo"/>
+      </div>
+      <div class="rev-badge">Quote 21018810 – Rev 69</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- TITLE -->
+    <div class="title-block">
+      <div class="title">Grahams Home Office</div>
+    </div>
+
+    <!-- DETAILS -->
+    <div class="section">
+      <h2>Quote Details</h2>
+      <div class="meta-2col">
+        <div>
+          <div class="meta-label">From:</div>
+          <div class="meta-value">
+            Ed Cawthorne<br/>
+            Doozie Ltd<br/>
+            <a href="https://www.doozie.co" target="_blank" rel="noopener">www.doozie.co</a><br/>
+            Phone: 07890561683
+          </div>
+        </div>
+        <div>
+          <div class="meta-label">For:</div>
+          <div class="meta-value">Hannah Cawthorne</div>
+          <div class="meta-label" style="margin-top:14px;">Date Issued:</div>
+          <div class="meta-value">11 Feb 2026</div>
+          <div class="meta-label" style="margin-top:14px;">Expiring Date:</div>
+          <div class="meta-value">13 Mar 2026</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="section">
+      <h2>Overview</h2>
+      <p style="color:var(--grey);margin-bottom:20px;"><p><strong>Premium bespoke home office fit‑out</strong></p>
+<ul>
+<li>Moisture‑resistant carcasses</li>
+<li>PM finish fronts</li>
+<li>Scribed to walls and ceilings</li>
+<li>Soft‑close hardware</li>
+</ul>
+<p><strong>Warranty:</strong> 2‑year workmanship guarantee</p>
+</p>
+    </div>
+
+    <!-- 3D VIEWS -->
+    <div class="section">
+      <h2>3D Views</h2>
+      <p style="color:var(--grey);font-size:0.95rem;margin-bottom:14px;">
+        <strong>Tip:</strong> Drag to rotate, scroll/pinch to zoom, right‑drag to pan. Tap ⤢ for full screen.
+      </p>
+
+      <!-- Doors closed -->
+      <h3 style="font-size:1rem;font-weight:600;margin:10px 0 8px;">Doors closed</h3>
+      <div class="viewer-wrap js-viewer" data-label="doors-closed">
+        <div class="viewer js-viewer-inline">
+          <iframe src="https://3dviewer.net/embed.html#model=https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5C%40W1000~1.png,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CAlumin~1.jpg,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CH3368_~1.png,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5Craw.jpg,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CStudy_V4.3ds,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CU604_ST9.png$camera=4371.47575,1888.79862,-1873.12939,1172.74561,1294.75024,1252.00024,0.00000,1.00000,0.00000,38$projectionmode=perspective$envsettings=fishermans_bastion,off$backgroundcolor=255,255,255,255$defaultcolor=200,200,200$defaultlinecolor=100,100,100$edgesettings=off,0,0,0,1" allowfullscreen></iframe>
+        </div>
+        <button class="fab-3d js-open3d" type="button" aria-label="Open 3D Viewer Fullscreen (doors closed)">⤢</button>
+        <div class="fab-shield" aria-hidden="true"></div>
+      </div>
+
+      <div style="height:1px;background:var(--mid);border-radius:1px;margin:22px 0;"></div>
+
+      <!-- Doors open -->
+      <h3 style="font-size:1rem;font-weight:600;margin:10px 0 8px;">Doors open</h3>
+      <div class="viewer-wrap js-viewer" data-label="doors-open">
+        <div class="viewer js-viewer-inline">
+          <iframe src="https://3dviewer.net/embed.html#model=https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5C%40W1000~1.png,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CAlumin~1.jpg,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CH3368_~1.png,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5Craw.jpg,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CStudy_V4.3ds,https://raw.githubusercontent.com/DoozieHQ/doozie-quotes/main/data%5Cquotes%5C21018810%5Cassets%5Cviewer%5CU604_ST9.png$camera=4371.47575,1888.79862,-1873.12939,1172.74561,1294.75024,1252.00024,0.00000,1.00000,0.00000,38$projectionmode=perspective$envsettings=fishermans_bastion,off$backgroundcolor=255,255,255,255$defaultcolor=200,200,200$defaultlinecolor=100,100,100$edgesettings=off,0,0,0,1" allowfullscreen></iframe>
+        </div>
+        <button class="fab-3d js-open3d" type="button" aria-label="Open 3D Viewer Fullscreen (doors open)">⤢</button>
+        <div class="fab-shield" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!-- MATERIALS & HANDLES -->
+    <div class="section">
+      <h2>Materials & Hardware</h2>
+
+      <div class="subhead">
+        Materials <div class="subhead-line"></div>
+      </div>
+
+      <div class="swatch-grid">
+        <!-- Material 1 (URL tokens used in <img>) -->
+        <figure class="swatch-card">
+          <img class="swatch-thumb" src="/data/quotes/21018810/assets/materials/H3368_~1.png" data-full="/data/quotes/21018810/assets/materials/H3368_~1.png" alt="Egger U708 PM – Light Grey"/>
+          <figcaption class="swatch-caption">
+            <strong>Egger U708 PM – Light Grey</strong><br/>
+            <span>18mm MFC | PM finish</span>
+          </figcaption>
+        </figure>
+
+        <!-- Material 2+ (HTML blocks from generator) -->
+        
+<figure class="swatch-card">
+  <img class="swatch-thumb" src="/data/quotes/21018810/assets/materials/U604_ST9.png" data-full="/data/quotes/21018810/assets/materials/U604_ST9.png" alt="Egger H3368 ST9 – Mountain Oak"/>
+  <figcaption class="swatch-caption">
+    <strong>Egger H3368 ST9 – Mountain Oak</strong><br/>
+    <span>Accent material (backs/shelves)</span>
+  </figcaption>
+</figure>
+      </div>
+
+      <div class="subhead" style="margin-top:28px;">
+        Handles <div class="subhead-line"></div>
+      </div>
+
+      <div class="swatch-grid">
+        
+<figure class="swatch-card">
+  <img class="swatch-thumb" src="/data/quotes/21018810/assets/handles/pebble.jpg" data-full="/data/quotes/21018810/assets/handles/pebble.jpg" alt="Hafele Pebble 160mm"/>
+  <figcaption class="swatch-caption">
+    <strong>Hafele Pebble 160mm</strong><br/>
+    <span>Brushed brass</span>
+  </figcaption>
+</figure>
+        
+      </div>
+    </div>
+
+    <!-- PRICING -->
+    <div class="section">
+      <h2>Investment Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="num">Qty</th>
+            <th class="num">Unit</th>
+            <th class="num">Line</th>
+          </tr>
+        </thead>
+        <tbody><tr>
+  <td>Cabinet Carcasses (MR MFC)</td>
+  <td class="num">1</td>
+  <td class="num">£1250.00</td>
+  <td class="num">£1250.00</td>
+</tr>
+<tr>
+  <td>Doors & Fronts (PM finish)</td>
+  <td class="num">1</td>
+  <td class="num">£950.00</td>
+  <td class="num">£950.00</td>
+</tr>
+<tr>
+  <td>Worktop & Edging</td>
+  <td class="num">1</td>
+  <td class="num">£620.00</td>
+  <td class="num">£620.00</td>
+</tr>
+<tr>
+  <td>Handles (pair)</td>
+  <td class="num">1</td>
+  <td class="num">£58.00</td>
+  <td class="num">£58.00</td>
+</tr>
+<tr>
+  <td>Installation & Scribing</td>
+  <td class="num">1</td>
+  <td class="num">£480.00</td>
+  <td class="num">£480.00</td>
+</tr></tbody>
+        <tfoot>
+          <tr><td colspan="3" class="num">Subtotal</td><td class="num">£3358.00</td></tr>
+          <tr><td colspan="3" class="num">VAT (20%)</td><td class="num">£671.60</td></tr>
+          <tr class="total-row"><td colspan="3" class="num">Total</td><td class="num">£4029.60</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="footer">
+      © 2026 • YOUR_COMPANY_NAME • YOUR_COMPANY_ADDRESS • SALES_EMAIL
+    </div>
+
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <span class="lightbox-close" id="lightbox-close" aria-label="Close image">&times;</span>
+    <img id="lightbox-img" src="" alt="">
+  </div>
+
+  <!-- FULLSCREEN 3D MODAL -->
+  <div class="modal3d" id="modal3d" aria-hidden="true" role="dialog" aria-label="3D Viewer Full Screen">
+    <div class="modal3d-backdrop" id="modal3dBackdrop"></div>
+    <div class="modal3d-dialog" role="document" aria-modal="true">
+      <button class="modal3d-close" id="close3dFullscreen" type="button" aria-label="Close 3D Viewer">&times;</button>
+      <div class="modal3d-content" id="modal3dContent"></div>
+    </div>
+  </div>
+
+  <!-- GLOBAL viewer cover (for image lightbox masking) -->
+  <div id="viewerCover" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(2px);z-index:2147483647;display:none;pointer-events:auto;"></div>
+
+</body>
+</html>

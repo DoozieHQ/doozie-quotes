@@ -1,1 +1,37 @@
-{ "leadId": "21018810", "projectTitle": "Test", "pricing": { "currency": "£", "items": [], "vatRate": 0.2 } }
+{
+  "leadId": "21018810",
+
+  "projectTitle": "Grahams Home Office",
+
+  "overview": "**Premium bespoke home office fit‑out**\n\n- Moisture‑resistant carcasses\n- PM finish fronts\n- Scribed to walls and ceilings\n- Soft‑close hardware\n\n**Warranty:** 2‑year workmanship guarantee",
+
+  "materials": [
+    {
+      "name": "Egger U708 PM – Light Grey",
+      "notes": "18mm MFC | PM finish"
+    },
+    {
+      "name": "Egger H3368 ST9 – Mountain Oak",
+      "notes": "Accent material (backs/shelves)"
+    }
+  ],
+
+  "handles": [
+    {
+      "name": "Hafele Pebble 160mm",
+      "finish": "Brushed brass"
+    }
+  ],
+
+  "pricing": {
+    "currency": "£",
+    "items": [
+      { "name": "Cabinet Carcasses (MR MFC)",       "qty": 1, "unit": 1250 },
+      { "name": "Doors & Fronts (PM finish)",       "qty": 1, "unit": 950 },
+      { "name": "Worktop & Edging",                 "qty": 1, "unit": 620 },
+      { "name": "Handles (pair)",                   "qty": 1, "unit": 58 },
+      { "name": "Installation & Scribing",          "qty": 1, "unit": 480 }
+    ],
+    "vatRate": 0.2
+  }
+}
