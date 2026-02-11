@@ -1,58 +1,44 @@
 document.addEventListener("DOMContentLoaded", function() {
 
   /* -------------------------------------------------
-   * IMAGE LIGHTBOX
-   * ------------------------------------------------- */
+ * IMAGE LIGHTBOX (final fix)
+ * ------------------------------------------------- */
 
-  const lightbox     = document.getElementById('lightbox');
-  const lightboxImg  = document.getElementById('lightbox-img');
-  const lightboxExit = document.getElementById('lightbox-close');
-  const viewerCover  = document.getElementById('viewerCover');
-  const fabShield    = document.getElementById('fabShield');
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightbox-img');
+const lightboxExit = document.getElementById('lightbox-close');
+const viewerCover = document.getElementById('viewerCover');
 
-  let thumbs = [];
+const thumbs = document.querySelectorAll('.thumb, .swatch-thumb');
 
-  if (lightbox && lightboxImg) {
+function showLightbox(fullSrc) {
+  lightboxImg.src = fullSrc;
+  lightbox.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 
-    thumbs = document.querySelectorAll('.thumb, .swatch-thumb');
+  // ALWAYS cover 3D viewer on lightbox open
+  if (viewerCover) viewerCover.style.display = 'block';
+}
 
-    thumbs.forEach(t => {
-      t.addEventListener('click', () => {
-        const full = (t.dataset && t.dataset.full) ? t.dataset.full : t.src;
-        if (!full) return;
+function hideLightbox() {
+  lightbox.style.display = 'none';
+  lightboxImg.src = '';
+  document.body.style.overflow = '';
 
-        lightboxImg.src = full;
-        lightbox.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
+  // ALWAYS uncover 3D viewer on lightbox close
+  if (viewerCover) viewerCover.style.display = 'none';
+}
 
-        // COVER THE 3D VIEWER
-        if (viewerCover) viewerCover.style.display = 'block';
-        if (fabShield) fabShield.classList.add('viewer-fab-shield-active');
-      });
-    });
+thumbs.forEach(t => {
+  t.addEventListener('click', () => {
+    const full = t.dataset.full || t.src;
+    showLightbox(full);
+  });
+});
 
-    function hideLightbox(){
-      lightbox.style.display = 'none';
-      lightboxImg.src = '';
-      document.body.style.overflow = '';
-
-      // UNCOVER THE 3D VIEWER
-      if (viewerCover) viewerCover.style.display = 'none';
-      if (fabShield) fabShield.classList.remove('viewer-fab-shield-active');
-    }
-
-    if (lightboxExit) lightboxExit.addEventListener('click', hideLightbox);
-
-    lightbox.addEventListener('click', e => {
-      if (e.target === lightbox) hideLightbox();
-    });
-
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') hideLightbox();
-    });
-  }
-
-
+lightboxExit?.addEventListener('click', hideLightbox);
+lightbox.addEventListener('click', e => { if (e.target === lightbox) hideLightbox(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideLightbox(); });
 
   /* -------------------------------------------------
    * 3D FULLSCREEN MODAL
