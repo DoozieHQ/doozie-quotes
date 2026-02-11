@@ -2,7 +2,47 @@ import 'dotenv/config';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import fetch from 'node-fetch';
-import { marked } from 'marked';
+
+/* ------------------------------------------------------------
+ * Optional Markdown support: try 'marked', otherwise fallback.
+ * ------------------------------------------------------------ */
+let marked;
+try {
+  ({ marked } = await import('marked')); // dynamic ESM import
+} catch {
+  // Minimal Markdown -> HTML (bold **text**, italic *text*, lists, paragraphs)
+  marked = {
+    parse(md = '') {
+      md = String(md).replace(/\r\n?/g, '\n');
+      const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const lines = md.split('\n');
+      const out = [];
+      let listOpen = false;
+      const flushList = () => { if (listOpen) { out.push('</ul>'); listOpen = false; } };
+
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+
+        // unordered list
+        const m = line.match(/^[-*]\s+(.*)$/);
+        if (m) {
+          if (!listOpen) { out.push('<ul>'); listOpen = true; }
+          const li = esc(m[1]).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+          out.push(`<li>${li}</li>`);
+          continue;
+        }
+
+        if (line.trim() === '') { flushList(); out.push(''); continue; }
+
+        flushList();
+        const p = esc(line).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+        out.push(`<p>${p}</p>`);
+      }
+      flushList();
+      return out.join('\n');
+    }
+  };
+}
 
 /* ----------------------------- small utils ----------------------------- */
 function arg(flag, fallback = null) {
@@ -13,9 +53,8 @@ function hasFlag(flag) { return process.argv.includes(flag); }
 function assertEnv(name) { const v = process.env[name]; if (!v) { console.error(`❌ Missing env: ${name}`); process.exit(1); } return v; }
 function money(n) { return Number(n || 0).toFixed(2); }
 function toPosix(p) { return p.split(path.sep).join('/'); }
-function isRelative(p) { return typeof p === 'string' && !p.startsWith('http') && !p.startsWith('/'); }
 
-/* Root-absolute web paths */
+/* Root-absolute web paths for on-site files */
 function toWebPath(rel) {
   if (!rel) return '';
   return '/' + toPosix(rel).replace(/^\/+/, '');
@@ -63,7 +102,7 @@ function buildRawUrl(owner, repo, branch, relPath) {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-/* 3D viewer iframe */
+/* Build a COMPLETE iframe element for the 3D viewer */
 function build3DViewerIframe(owner, repo, branch, viewerFiles) {
   if (!viewerFiles.length) return '';
   const urls = viewerFiles.map(p => buildRawUrl(owner, repo, branch, p));
@@ -83,7 +122,7 @@ function build3DViewerIframe(owner, repo, branch, viewerFiles) {
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  return `<iframe src="${src}" allowfullscreen></iframe>`;
+  return `${src}" allowfullscreen></iframe>`;
 }
 
 /* Kommo helpers */
@@ -155,7 +194,7 @@ async function getNextRevision(outDir, leadId) {
   const STRICT     = hasFlag('--strict');
 
   if (!dataFile){
-    console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>/info.json [--tpl templates/quote.html.tpl]');
+    console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>/info.json [--tpl templates/quote.html.tpl] [--out quotes]');
     process.exit(1);
   }
 
@@ -187,7 +226,7 @@ async function getNextRevision(outDir, leadId) {
   const handleFiles   = await listFiles(handlesDir,   ['.png','.jpg','.jpeg']);
   const doorFiles     = await listFiles(doorsDir,     ['.png','.jpg','.jpeg']);
 
-  /* 3D viewer iframe token */
+  /* 3D viewer iframe token (uses GH raw URLs) */
   const THREED_IFRAME_URL = viewerFiles.length
     ? build3DViewerIframe(GH_OWNER, GH_REPO, GH_BRANCH, viewerFiles.map(x => path.relative(process.cwd(), x)))
     : '';
@@ -218,7 +257,7 @@ async function getNextRevision(outDir, leadId) {
     }).join('\n')
     : `<tr><td colspan="4">No items.</td></tr>`;
 
-  /* Materials (unlimited; order = JSON list) */
+  /* Materials (unlimited; order = JSON) */
   const materialMeta = Array.isArray(data.materials) ? data.materials : [];
   let MATERIAL_1_THUMB = '';
   let MATERIAL_1_NAME  = '';
@@ -226,20 +265,20 @@ async function getNextRevision(outDir, leadId) {
   let MATERIAL_2_BLOCK = '';
 
   if (materialMeta.length > 0) {
-    // Material 1
+    // Material 1: emit FULL <img> element with data-full + alt
     const m0 = materialMeta[0];
     const f0 = materialFiles[0] ? toWebUrl(path.relative(process.cwd(), materialFiles[0])) : '';
     MATERIAL_1_THUMB = `${f0}`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
-    // Material 2+
+    // Material 2+ as BLOCKS (each with <img class="swatch-thumb"...>)
     for (let i = 1; i < materialMeta.length; i++) {
       const mi = materialMeta[i];
       const fi = materialFiles[i] ? toWebUrl(path.relative(process.cwd(), materialFiles[i])) : '';
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${mi?.name || ''}"/>
+  ${fi}
   <figcaption class="swatch-caption">
     <strong>${mi?.name || ''}</strong><br/>
     <span>${mi?.notes || ''}</span>
@@ -248,7 +287,7 @@ async function getNextRevision(outDir, leadId) {
     }
   }
 
-  /* Handles (unlimited; order = JSON list) */
+  /* Handles (unlimited; order = JSON) */
   const handleMeta = Array.isArray(data.handles) ? data.handles : [];
   let HANDLE_1_BLOCK = '';
   let HANDLE_2_BLOCK = '';
@@ -259,7 +298,7 @@ async function getNextRevision(outDir, leadId) {
       const fi = handleFiles[i] ? toWebUrl(path.relative(process.cwd(), handleFiles[i])) : '';
       const block = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${hi?.name || ''}"/>
+  ${fi}
   <figcaption class="swatch-caption">
     <strong>${hi?.name || ''}</strong><br/>
     <span>${hi?.finish || hi?.notes || ''}</span>
@@ -270,7 +309,7 @@ async function getNextRevision(outDir, leadId) {
     }
   }
 
-  /* Door views (optional) */
+  /* Door views (optional) — still supported if you keep the section */
   const IMAGE_DOORSON_THUMB  = doorFiles[0] ? toWebUrl(path.relative(process.cwd(), doorFiles[0])) : '';
   const IMAGE_DOORSOFF_THUMB = doorFiles[1] ? toWebUrl(path.relative(process.cwd(), doorFiles[1])) : '';
 
