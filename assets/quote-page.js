@@ -1,7 +1,24 @@
 document.addEventListener("DOMContentLoaded", function(){
 
   /* ------------------------------------------------
-   * LIGHTBOX for images (thumbnails & swatches)
+   * 0) IMAGE PATH NORMALIZER (root-absolute)
+   * ------------------------------------------------ */
+  (function normalizeRelativeImgSrcs(){
+    const isRelative = (u) => u && !/^([a-z]+:)?\/\//i.test(u) && !u.startsWith('/');
+    const absolutize = (u) => '/' + u.replace(/^\/+/, '');
+
+    document.querySelectorAll('img[src]').forEach(img => {
+      const src = img.getAttribute('src') || '';
+      if (isRelative(src)) img.setAttribute('src', absolutize(src));
+
+      const full = img.getAttribute('data-full');
+      if (full && isRelative(full)) img.setAttribute('data-full', absolutize(full));
+    });
+  })();
+
+
+  /* ------------------------------------------------
+   * 1) LIGHTBOX for images (thumbnails & swatches)
    * ------------------------------------------------ */
   const lightbox    = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightbox-img');
@@ -23,7 +40,7 @@ document.addEventListener("DOMContentLoaded", function(){
 
   // Bind to image thumbnails and swatches
   document.querySelectorAll('.thumb, .swatch-thumb').forEach(img => {
-    img.addEventListener('click', (e) => {
+    img.addEventListener('click', () => {
       const full = img.getAttribute('data-full') || img.getAttribute('src');
       if (full) showLightbox(full);
     });
@@ -34,7 +51,7 @@ document.addEventListener("DOMContentLoaded", function(){
 
 
   /* ------------------------------------------------
-   * FULLSCREEN 3D VIEWER — multi-instance, defensive
+   * 2) FULLSCREEN 3D VIEWER — multi-instance, defensive
    * ------------------------------------------------ */
   const modal        = document.getElementById('modal3d');
   const modalContent = document.getElementById('modal3dContent');
@@ -127,7 +144,7 @@ document.addEventListener("DOMContentLoaded", function(){
     });
   });
 
-  // Defensive fallback: any .fab-3d inside a .js-viewer
+  // Defensive fallback: any .fab-3d inside a .js-viewer (in case a class gets stripped)
   document.querySelectorAll('.js-viewer .fab-3d').forEach(btn => {
     if (!btn.classList.contains('js-open3d')) {
       btn.addEventListener('click', (e) => {
