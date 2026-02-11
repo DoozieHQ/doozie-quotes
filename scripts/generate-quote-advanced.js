@@ -39,7 +39,7 @@ try {
   };
 }
 
-/* ----------------------------- small utils ----------------------------- */
+/* ----------------------------- utils ----------------------------- */
 function arg(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
   return (i !== -1 && process.argv[i + 1]) ? process.argv[i + 1] : fallback;
@@ -62,7 +62,7 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-/* Escape for HTML attributes (names/notes/finishes) */
+/* Escape for HTML attributes */
 function escAttr(s = '') {
   return String(s)
     .replace(/&/g,'&amp;')
@@ -110,7 +110,7 @@ function buildRawUrl(owner, repo, branch, relPath) {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encoded}`;
 }
 
-/* Make model URLs from GH Raw (default) or local PUBLIC_BASE_URL */
+/* Model URLs: GH Raw (default) or local PUBLIC_BASE_URL */
 function buildViewerModelUrls(owner, repo, branch, relPaths, PUBLIC, mode = 'gh') {
   if (mode === 'local') {
     const base = PUBLIC.replace(/\/+$/,'');
@@ -139,7 +139,8 @@ function build3DViewerIframe({ owner, repo, branch, relPaths, PUBLIC, viewerSour
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  return `${src}" allowfullscreen></iframe>`;
+  // RETURN A REAL IFRAME
+  return `<iframe src="${src}" allowfullscreen></iframe>`;
 }
 
 /* Kommo helpers */
@@ -287,13 +288,13 @@ async function getNextRevision(outDir, leadId) {
   let MATERIAL_1_THUMB = '';   // FULL <img> element
   let MATERIAL_1_NAME  = '';
   let MATERIAL_1_NOTES = '';
-  let MATERIAL_2_BLOCK = '';   // all remaining materials as blocks
+  let MATERIAL_2_BLOCK = '';   // remaining materials as blocks
 
   if (materialMeta.length > 0) {
     // Material 1 — full <img>
     const m0 = materialMeta[0];
     const f0 = materialFiles[0] ? toWebUrl(path.relative(process.cwd(), materialFiles[0])) : '';
-    MATERIAL_1_THUMB = `${f0}`;
+    MATERIAL_1_THUMB = `<img class="swatch-thumb" src="${f0}" data-full="${f0}" alt="${escAttr(m0?.name||'')}" />`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
 
@@ -303,7 +304,7 @@ async function getNextRevision(outDir, leadId) {
       const fi = materialFiles[i] ? toWebUrl(path.relative(process.cwd(), materialFiles[i])) : '';
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  ${fi}
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(mi?.name||'')}" />
   <figcaption class="swatch-caption">
     <strong>${escAttr(mi?.name || '')}</strong><br/>
     <span>${escAttr(mi?.notes || '')}</span>
@@ -323,7 +324,7 @@ async function getNextRevision(outDir, leadId) {
       const fi = handleFiles[i] ? toWebUrl(path.relative(process.cwd(), handleFiles[i])) : '';
       const block = `
 <figure class="swatch-card">
-  ${fi}
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(hi?.name||'')}" />
   <figcaption class="swatch-caption">
     <strong>${escAttr(hi?.name || '')}</strong><br/>
     <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
@@ -349,6 +350,11 @@ async function getNextRevision(outDir, leadId) {
   const expiryISO = addDays(issueISO, 30);
   const ISSUE_DATE  = formatDateIntl(issueISO);
   const EXPIRY_DATE = formatDateIntl(expiryISO);
+
+  /* --- Diagnostics (so we can sanity-check output) --- */
+  console.log('DBG iframe starts with:', THREED_IFRAME_URL.slice(0, 40));
+  console.log('DBG mat1 img starts:', MATERIAL_1_THUMB.slice(0, 40));
+  console.log('DBG mats block len:', MATERIAL_2_BLOCK.length, 'handles block len:', (HANDLE_1_BLOCK + HANDLE_2_BLOCK).length);
 
   /* Build HTML */
   const tpl  = await fs.readFile(path.resolve(tplFile), 'utf8');
