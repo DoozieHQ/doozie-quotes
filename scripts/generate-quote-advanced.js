@@ -10,32 +10,47 @@ let marked;
 try {
   ({ marked } = await import('marked'));
 } catch {
+  // Minimal Markdown -> HTML (bold **…**, italic *…*, <ul>/<li>, <p>)
   marked = {
     parse(md = '') {
       md = String(md).replace(/\r\n?/g, '\n');
-      const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const esc = (s) =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       const lines = md.split('\n');
       const out = [];
       let listOpen = false;
-      const flushList = () => { if (listOpen) { out.push('</ul>'); listOpen = false; } };
+      const flushList = () => {
+        if (listOpen) { out.push('</ul>'); listOpen = false; }
+      };
 
       for (const raw of lines) {
         const line = raw.trimEnd();
+
+        // list item?
         const m = line.match(/^[-*]\s+(.*)$/);
         if (m) {
           if (!listOpen) { out.push('<ul>'); listOpen = true; }
-          const li = esc(m[1]).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+          const li = esc(m[1])
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>');
           out.push(`<li>${li}</li>`);
           continue;
         }
+
+        // blank line
         if (line.trim() === '') { flushList(); out.push(''); continue; }
+
+        // paragraph
         flushList();
-        const p = esc(line).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+        const p = esc(line)
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>');
         out.push(`<p>${p}</p>`);
       }
       flushList();
       return out.join('\n');
-    }
+    },
   };
 }
 
@@ -62,13 +77,13 @@ function toWebUrl(rel) {
   return rel ? encodeURI(toWebPath(rel)) : '';
 }
 
-/* Escape for HTML attributes */
+/* Escape for HTML attributes (single-escape only) */
 function escAttr(s = '') {
   return String(s)
-    .replace(/&/g,'&amp;')
-    .replace(/"/g,'&quot;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;');
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /* dates */
@@ -107,7 +122,8 @@ async function listFiles(folder, exts = []) {
 async function ensureDir(dir){ await fs.mkdir(dir,{recursive:true}); }
 async function copyFileTo(src, dstDir){
   await ensureDir(dstDir);
-  const base=path.basename(src); const dst=path.join(dstDir, base);
+  const base = path.basename(src);
+  const dst  = path.join(dstDir, base);
   await fs.copyFile(src, dst);
   return toPosix(dst);
 }
@@ -140,7 +156,8 @@ function build3DViewerIframeFromRepo({ owner, repo, branch, leadId, basenames = 
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  return `${src}" allowfullscreen></iframe>`;
+  // Full, valid iframe element
+  return `<iframe src="${src}" style="width:100%;height:100%;border:0;" loading="lazy" allowfullscreen></iframe>`;
 }
 
 /* Kommo helpers */
@@ -273,7 +290,7 @@ async function getNextRevision(outDir, leadId) {
       const unit = Number(it.unit||0);
       const line = qty * unit;
       return `<tr>
-  <td>${it.name||''}</td>
+  <td>${it.name || ''}</td>
   <td class="num">${qty}</td>
   <td class="num">${ccy}${money(unit)}</td>
   <td class="num">${ccy}${money(line)}</td>
@@ -291,16 +308,19 @@ async function getNextRevision(outDir, leadId) {
   if (materialMeta.length > 0) {
     const pubMatDir = path.resolve('assets','leads',leadId,'materials');
 
-    // Material 1
+    // Material 1 (emit a full <img>)
     const m0 = materialMeta[0];
     const f0 = materialFilesAbs[0]
       ? toWebUrl(path.relative(process.cwd(), await copyFileTo(materialFilesAbs[0], pubMatDir)))
       : '';
-    MATERIAL_1_THUMB = `${f0}`;
     MATERIAL_1_NAME  = m0?.name  || '';
     MATERIAL_1_NOTES = m0?.notes || '';
+    MATERIAL_1_THUMB =
+      f0
+        ? `<img class="swatch-thumb" src="${f0}" data-full="${f0}" alt="${escAttr(MATERIAL_1_NAME || 'Material 1')}">`
+        : '';
 
-    // Material 2+
+    // Material 2+ (emit full <figure> blocks with <img>)
     for (let i = 1; i < materialMeta.length; i++) {
       const mi = materialMeta[i];
       const fi = materialFilesAbs[i]
@@ -308,7 +328,7 @@ async function getNextRevision(outDir, leadId) {
         : '';
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  ${fi}
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(mi?.name || `Material ${i+1}`)}">
   <figcaption class="swatch-caption">
     <strong>${escAttr(mi?.name || '')}</strong><br/>
     <span>${escAttr(mi?.notes || '')}</span>
@@ -332,7 +352,7 @@ async function getNextRevision(outDir, leadId) {
         : '';
       const block = `
 <figure class="swatch-card">
-  ${fi}
+  <img class="swatch-thumb" src="${fi}" data-full="${fi}" alt="${escAttr(hi?.name || `Handle ${i+1}`)}">
   <figcaption class="swatch-caption">
     <strong>${escAttr(hi?.name || '')}</strong><br/>
     <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
