@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", function(){
    * ------------------------- */
 
   function showLightbox(fullSrc){
-    // ALWAYS close modal 3D before lightbox opens:
+    // Always close modal before opening lightbox
     if (modal.getAttribute('aria-hidden') === 'false'){
       closeModal3D();
     }
@@ -34,7 +34,6 @@ document.addEventListener("DOMContentLoaded", function(){
     lightbox.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 
-    // COVER inline viewer during lightbox
     if (viewerCover) viewerCover.style.display = 'block';
   }
 
@@ -43,7 +42,6 @@ document.addEventListener("DOMContentLoaded", function(){
     lightboxImg.src = '';
     document.body.style.overflow = '';
 
-    // UNCOVER inline viewer
     if (viewerCover) viewerCover.style.display = 'none';
   }
 
@@ -64,6 +62,37 @@ document.addEventListener("DOMContentLoaded", function(){
    * FULLSCREEN 3D VIEWER
    * ------------------------- */
 
+  function injectIframeHidingCSS(iframe){
+    iframe.addEventListener('load', () => {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        if (!iframeDoc) return;
+
+        const style = iframeDoc.createElement('style');
+
+        // Hiding Online3DViewer FAB, toolbars, nav buttons
+        style.innerHTML = `
+          /* Hide toolbar container, buttons, and FAB inside iframe */
+          .ov_toolbar,
+          .ov_sidebar,
+          .ov_toolbar_button,
+          button {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        `;
+
+        iframeDoc.head.appendChild(style);
+
+      } catch (err) {
+        console.warn("iframe CSS inject failed:", err);
+      }
+    });
+  }
+
+
   function openModal3D(){
     const srcIframe = inlineViewer.querySelector('iframe');
     if (!srcIframe) return;
@@ -73,12 +102,16 @@ document.addEventListener("DOMContentLoaded", function(){
     clonedIframe = srcIframe.cloneNode(true);
     clonedIframe.setAttribute('loading','eager');
 
+    // Inject CSS into the fullscreen iframe to hide FABs
+    injectIframeHidingCSS(clonedIframe);
+
     modalContent.innerHTML = '';
     modalContent.appendChild(clonedIframe);
 
     modal.setAttribute('aria-hidden','false');
     document.body.style.overflow = 'hidden';
   }
+
 
   function closeModal3D(){
     modal.setAttribute('aria-hidden','true');
@@ -87,13 +120,13 @@ document.addEventListener("DOMContentLoaded", function(){
 
     document.body.style.overflow = '';
 
-    // Hide cover if shown
     if (viewerCover) viewerCover.style.display = 'none';
 
     if (lastFocus && typeof lastFocus.focus === 'function'){
       lastFocus.focus();
     }
   }
+
 
   openBtn?.addEventListener('click', openModal3D);
   closeBtn?.addEventListener('click', closeModal3D);
