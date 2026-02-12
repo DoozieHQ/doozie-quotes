@@ -1,0 +1,30 @@
+{
+  "leadId": "20999164",
+  "projectTitle": "Office Desk and Storage",
+  "overview": "Overview Section - not sure how this works!",
+  "materials": [
+    {
+      "name": "@W1000~1",
+      "notes": ""
+    },
+    {
+      "name": "H3368_~1",
+      "notes": ""
+    },
+    {
+      "name": "U604_ST9",
+      "notes": ""
+    }
+  ],
+  "handles": [
+    {
+      "name": "pebble",
+      "finish": ""
+    }
+  ],
+  "pricing": {
+    "currency": "£",
+    "items": [],
+    "vatRate": 0.2
+  }
+}
