@@ -1,10 +1,12 @@
+// --- CHUNK 1 START ---
 /******************************************************************************************
- * QUOTE GENERATOR v4.0 — Doozie
- * - Valid <iframe> output for 3D viewer
- * - No double-encoding in model URLs
- * - Auto-mirror viewer/materials/handles to /assets/leads/<LEAD_ID>/*
- * - Real <img> tags for swatch blocks (never raw URLs)
- * - Safe Markdown fallback (no entity leakage)
+ * QUOTE GENERATOR v4.1 — Doozie (chunked)
+ * - Proper <iframe> element for 3D viewer
+ * - No double-encoding of GH Raw URLs
+ * - Auto-mirror viewer/material/handle assets into /assets/leads/<LEAD_ID>/*
+ * - Real <img> tags for swatches (never raw URLs)
+ * - Safe Markdown fallback
+ * - Stable HTML output
  ******************************************************************************************/
 
 import 'dotenv/config';
@@ -33,6 +35,8 @@ try {
 
       for (const raw of lines) {
         const line = raw.trimEnd();
+
+        // bullets
         const m = line.match(/^[-*]\s+(.*)$/);
         if (m) {
           if (!inList) { out.push('<ul>'); inList = true; }
@@ -42,19 +46,25 @@ try {
           out.push(`<li>${li}</li>`);
           continue;
         }
+
+        // blank → paragraph break
         if (!line.trim()) { closeList(); out.push(''); continue; }
+
+        // paragraph
         closeList();
         const p = esc(line)
           .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.+?)\*/g, '<em>$1</em>');
         out.push(`<p>${p}</p>`);
       }
+
       closeList();
       return out.join('\n');
     }
   };
 }
-
+// --- CHUNK 1 END ---
+// --- CHUNK 2 START ---
 /* ------------------------------------ Utils ------------------------------------ */
 function arg(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
@@ -74,7 +84,7 @@ function toWebPath(rel) {
   return '/' + toPosix(rel).replace(/^\/+/, '');
 }
 function toWebUrl(rel) {
-  // Encode for web paths served by *your site* (NOT for GH Raw)
+  // Encode for your own site paths. (Do NOT use for GH Raw.)
   return encodeURI(toWebPath(rel));
 }
 
@@ -131,7 +141,7 @@ async function mirrorFolder(src, dest) {
   }
 }
 
-/* Copy one file to dest dir and return web URL (/assets/...) */
+/* Copy one file to repo public path and return its /assets/... URL */
 async function copyToRepoAndGetWebUrl(absSrc, destDir) {
   await fs.mkdir(destDir, { recursive: true });
   const fileName = path.basename(absSrc);
@@ -140,10 +150,12 @@ async function copyToRepoAndGetWebUrl(absSrc, destDir) {
   const relFromCwd = toPosix(path.relative(process.cwd(), destAbs));
   return toWebUrl(relFromCwd);
 }
+// --- CHUNK 2 END ---
+// --- CHUNK 3 START ---
 /* ---------------------------- GH Raw URL builder ---------------------------- */
 function ghRaw(owner, repo, branch, repoRelPath) {
   const safe = repoRelPath.replace(/^\/+/, '').split(path.sep).join('/');
-  // DO NOT encode again; avoid %2540 etc.
+  // DO NOT double-encode. Keep any % already present.
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${safe}`;
 }
 
@@ -168,8 +180,8 @@ function build3DIframe({ owner, repo, branch, leadId, viewerRelPaths }) {
     '$edgesettings=off,0,0,0,1';
 
   const src = `https://3dviewer.net/embed.html#model=${modelList}${camera}${settings}`;
-  // Return a complete <iframe>
-  return `${src}</iframe>`;
+  // Return a complete iframe element (CRITICAL FIX)
+  return `<iframe src="${src}" allowfullscreen></iframe>`;
 }
 
 /* ------------------------------ Kommo helpers ------------------------------ */
@@ -225,6 +237,8 @@ async function nextRevision(outDir, leadId) {
     return 1;
   }
 }
+// --- CHUNK 3 END ---
+// --- CHUNK 4 START ---
 /* ================================== MAIN ================================== */
 (async function main() {
 
@@ -245,7 +259,6 @@ async function nextRevision(outDir, leadId) {
   const tplFile  = arg('--tpl', 'templates/quote.html.tpl');
   const outDir   = arg('--out', 'quotes');
   const SKIP_KOMMO = hasFlag('--skip-kommo');
-  const STRICT     = hasFlag('--strict');
 
   if (!dataFile) {
     console.error('Usage: node scripts/generate-quote-advanced.js --data data/quotes/<LEAD_ID>/info.json [--tpl templates/quote.html.tpl] [--out quotes]');
@@ -300,8 +313,9 @@ async function nextRevision(outDir, leadId) {
 
   // Overview (Markdown -> HTML)
   const OVERVIEW_TEXT = data.overview ? marked.parse(data.overview) : '';
-  
-/* PRICING */
+// --- CHUNK 4 END ---
+// --- CHUNK 5 START ---
+  /* PRICING */
   const ccy = data.pricing?.currency || DEFAULT_CCY;
   const items = Array.isArray(data.pricing?.items) ? data.pricing.items : [];
   const vatRate = (typeof data.pricing?.vatRate === 'number') ? data.pricing.vatRate : 0.20;
@@ -332,11 +346,10 @@ async function nextRevision(outDir, leadId) {
   let MATERIAL_2_BLOCK = '';
 
   if (materialMeta.length > 0) {
-    // Material 1 — keep as URL (template wraps it in <img>)
+    // Material 1 — keep as URL (template wraps in <img>)
     const m0 = materialMeta[0];
     if (matsFilesAbs[0]) {
-      const mat1Url = await copyToRepoAndGetWebUrl(matsFilesAbs[0], repoMatsDir);
-      MATERIAL_1_THUMB = mat1Url;
+      MATERIAL_1_THUMB = await copyToRepoAndGetWebUrl(matsFilesAbs[0], repoMatsDir);
     } else {
       MATERIAL_1_THUMB = '';
     }
@@ -353,7 +366,7 @@ async function nextRevision(outDir, leadId) {
       const alt = escAttr(mi?.name || `Material ${i+1}`);
       MATERIAL_2_BLOCK += `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${web}" data-full="${web}" alt="${alt}">
+  <img class="swatch-thumb" src="${web}" data-full="${web}" alt="${alt}"/>
   <figcaption class="swatch-caption">
     <strong>${escAttr(mi?.name || '')}</strong><br/>
     <span>${escAttr(mi?.notes || '')}</span>
@@ -377,7 +390,7 @@ async function nextRevision(outDir, leadId) {
       const alt = escAttr(hi?.name || `Handle ${i+1}`);
       const block = `
 <figure class="swatch-card">
-  <img class="swatch-thumb" src="${web}" data-full="${web}" alt="${alt}">
+  <img class="swatch-thumb" src="${web}" data-full="${web}" alt="${alt}"/>
   <figcaption class="swatch-caption">
     <strong>${escAttr(hi?.name || '')}</strong><br/>
     <span>${escAttr(hi?.finish || hi?.notes || '')}</span>
@@ -387,6 +400,8 @@ async function nextRevision(outDir, leadId) {
       else HANDLE_2_BLOCK += block;
     }
   }
+// --- CHUNK 5 END ---
+// --- CHUNK 6 START ---
   /* DATES */
   const issueISO  = data.issueDate || new Date().toISOString().slice(0,10);
   const expiryISO = addDays(issueISO, 30);
@@ -442,6 +457,5 @@ async function nextRevision(outDir, leadId) {
     console.log('ℹ Kommo PATCH skipped (--skip-kommo).');
   }
 
-  if (STRICT) console.log('✔ STRICT mode on (warnings allowed)');
-
 })().catch(e => { console.error(e); process.exit(1); });
+// --- CHUNK 6 END ---
