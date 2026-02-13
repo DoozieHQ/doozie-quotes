@@ -9,9 +9,16 @@
     "build:quote": "node scripts/generate-quote-local.js --data data/quotes/12345678.json --tpl templates/quote.html.tpl --out quotes"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.6.2",
     "dotenv": "^16.6.1",
+    "enquirer": "^2.4.1",
+    "fs-extra": "^11.3.3",
+    "inquirer": "^13.2.2",
     "marked": "^17.0.2",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "node-file-dialog": "^1.0.3",
+    "ora": "^9.3.0"
   },
   "main": "index.js",
   "repository": {

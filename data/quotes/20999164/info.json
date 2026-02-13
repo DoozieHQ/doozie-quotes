@@ -1,11 +1,11 @@
 {
   "leadId": "20999164",
-  "projectTitle": "Office Desk and Storage",
-  "overview": "Overview Section - not sure how this works!",
+  "projectTitle": "This is a new project title",
+  "overview": "",
   "materials": [
     {
       "name": "@W1000~1",
-      "notes": ""
+      "notes": "W1000 - Egger White"
     },
     {
       "name": "H3368_~1",
@@ -13,7 +13,7 @@
     },
     {
       "name": "U604_ST9",
-      "notes": ""
+      "notes": "New Notes - hopefully it works"
     }
   ],
   "handles": [

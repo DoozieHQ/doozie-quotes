@@ -16,7 +16,6 @@
       --light:#f9f9f9;
       --white:#ffffff;
       --accent:#ffc700;
-
       --page-width:1000px;
       --rounded:16px;
       --font:"Poppins", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -45,7 +44,14 @@
     .title{font-size:2.4rem;font-weight:600;line-height:1.2;margin-bottom:8px;}
 
     /* SECTIONS */
-    .section{border:1px solid var(--mid);border-radius:var(--rounded);background:var(--white);padding:28px;margin-bottom:30px;box-shadow:0 4px 16px rgba(0,0,0,0.05);}
+    .section{
+      border:1px solid var(--mid);
+      border-radius:var(--rounded);
+      background:var(--white);
+      padding:28px;
+      margin-bottom:30px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.05);
+    }
     .section h2{font-size:1.4rem;font-weight:600;margin-bottom:18px;}
     .meta-2col{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
     .meta-label{font-weight:600;font-size:0.95rem;margin-bottom:4px;}
@@ -53,7 +59,7 @@
     .meta-value a{color:var(--black);text-decoration:none;border-bottom:1px solid var(--mid);}
     .meta-value a:hover{border-bottom-color:var(--black);}
 
-    /* 3D VIEWER */
+    /* VIEWER */
     .viewer-wrap{position:relative;}
     .viewer{position:relative;height:520px;}
     .viewer iframe{position:absolute; inset:0; width:100%; height:100%; border:0; z-index:1;}
@@ -64,24 +70,19 @@
       width:54px; height:54px;
       border-radius:50%;
       border:1px solid var(--mid);
-      background:var(--white); color:var(--black);
-      font-size:22px; line-height:1;
+      background:var(--white);
+      color:var(--black);
+      font-size:22px;
       display:flex; align-items:center; justify-content:center;
-      cursor:pointer; z-index:6;
+      cursor:pointer;
+      z-index:6;
       box-shadow:0 2px 8px rgba(0,0,0,0.15);
       transition:border-color .2s ease, box-shadow .2s ease, transform .1s ease;
     }
-    .fab-3d:hover{ border-color:var(--black); box-shadow:0 6px 16px rgba(0,0,0,0.2); }
-    .fab-3d:active{ transform:scale(0.98); }
 
-    .fab-shield{
-      position:absolute;
-      bottom:12px; right:12px;
-      width:70px; height:70px;
-      background:transparent;
-      pointer-events:auto;
-      z-index:5;
-    }
+    .fab-3d:hover{border-color:var(--black);box-shadow:0 6px 16px rgba(0,0,0,0.2);}
+    .fab-3d:active{transform:scale(0.98);}
+    .fab-shield{position:absolute;bottom:12px;right:12px;width:70px;height:70px;background:transparent;pointer-events:auto;z-index:5;}
 
     /* SWATCHES */
     .subhead{font-size:1.1rem;font-weight:600;margin-top:26px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
@@ -99,50 +100,87 @@
     }
 
     .swatch-thumb{
-      display:block;width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;
-      border-radius:12px;border:1px solid var(--mid);cursor:pointer;transition:.25s ease;
+      display:block;width:100%;aspect-ratio:1/1;object-fit:cover;
+      border-radius:12px;border:1px solid var(--mid);
+      cursor:pointer;
+      transition:.25s ease;
     }
     .swatch-thumb:hover{transform:scale(1.03);}
     .swatch-caption{margin-top:10px;font-size:0.9rem;color:var(--grey);}
 
     /* LIGHTBOX */
-    .lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;justify-content:center;align-items:center;}
-    .lightbox img{max-width:90%;max-height:90%;border-radius:var(--rounded);box-shadow:0 10px 40px rgba(0,0,0,0.6);}
-    .lightbox-close{position:absolute;top:24px;right:36px;font-size:40px;font-weight:200;color:white;cursor:pointer;}
+    .lightbox{
+      display:none;
+      position:fixed;inset:0;
+      background:rgba(0,0,0,0.75);
+      backdrop-filter:blur(4px);
+      z-index:10000;
+      justify-content:center;align-items:center;
+    }
+    .lightbox img{
+      max-width:90%;max-height:90%;
+      border-radius:var(--rounded);
+      box-shadow:0 10px 40px rgba(0,0,0,0.6);
+    }
+    .lightbox-close{
+      position:absolute;top:24px;right:36px;
+      font-size:40px;color:white;
+      cursor:pointer;
+    }
 
-    /* FIX — ensure lightbox sits above the global viewer cover */
-      .lightbox {
-        z-index: 10000 !important;
-      }
-
-      #viewerCover {
-        z-index: 9990 !important; /* BELOW lightbox; ABOVE iframes */
-      }
+    #viewerCover{
+      position:fixed;inset:0;
+      background:rgba(0,0,0,0.75);
+      backdrop-filter:blur(2px);
+      display:none;
+      pointer-events:auto;
+      z-index:9990;
+    }
 
     /* FULLSCREEN MODAL */
-    .modal3d{position:fixed;inset:0;display:none;z-index:99999;}
+    .modal3d{
+      position:fixed;inset:0;
+      display:none;
+      z-index:99999;
+    }
     .modal3d[aria-hidden="false"]{display:block;}
-    .modal3d-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.85);}
-    .modal3d-dialog{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:24px;}
+    .modal3d-dialog{
+      position:relative;
+      width:100%; height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .modal3d-backdrop{
+      position:absolute;inset:0;
+      background:rgba(0,0,0,0.85);
+    }
     .modal3d-close{
-      position:absolute;top:22px;right:28px;font-size:34px;background:none;border:0;color:white;cursor:pointer;z-index:2;
+      position:absolute;top:22px;right:28px;
+      font-size:34px;color:white;
+      background:none;border:0;
+      cursor:pointer;z-index:2;
     }
     .modal3d-content{
-      position:relative;width:100%;height:100%;max-width:1400px;max-height:90vh;
-      border:1px solid var(--mid);border-radius:16px;overflow:hidden;background:black;
+      position:relative;width:100%;height:100%;
+      max-width:1400px;max-height:90vh;
+      border:1px solid var(--mid);
+      border-radius:16px;
+      overflow:hidden;
+      background:black;
     }
     .modal3d-content iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
 
     /* PRICING TABLE */
     table{width:100%;border-collapse:collapse;margin-top:10px;}
-    th{background:var(--light);text-align:left;padding:12px;border-bottom:1px solid var(--mid);font-size:0.95rem;font-weight:600;}
-    td{padding:12px;border-bottom:1px solid var(--mid);font-size:0.95rem;}
+    th{background:var(--light);padding:12px;border-bottom:1px solid var(--mid);font-weight:600;}
+    td{padding:12px;border-bottom:1px solid var(--mid);}
     .num{text-align:right;}
-    tfoot td{font-weight:600;}
     .total-row td{font-size:1.15rem;font-weight:700;}
 
     /* FOOTER */
-    .footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--mid);text-align:center;font-size:0.85rem;color:var(--grey);}
+    .footer{text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid var(--mid);font-size:0.85rem;color:var(--grey);}
   </style>
 
   <script src="/assets/quote-page.js" defer></script>
@@ -198,45 +236,46 @@
     </div>
 
     <!-- 3D VIEWS -->
-    <div class="section">
-      <h2>3D Views</h2>
-      <p style="color:var(--grey);font-size:0.95rem;margin-bottom:14px;">
-        <strong>Tip:</strong> Drag to rotate, scroll/pinch to zoom, right‑drag to pan. Tap ⤢ for full screen.
-      </p>
+<div class="section">
+  <h2>3D Views</h2>
+  <p style="color:var(--grey);font-size:0.95rem;margin-bottom:14px;">
+    <strong>Tip:</strong> Drag to rotate, scroll/pinch to zoom, right‑drag to pan. Tap ⤢ for full screen.
+  </p>
 
-      <!-- Doors closed -->
-      <h3 style="font-size:1rem;font-weight:600;margin:10px 0 8px;">Doors closed</h3>
-      <div class="viewer-wrap js-viewer" data-label="doors-closed">
-        <div class="viewer js-viewer-inline">
-          {{THREED_IFRAME_URL}}
-        </div>
-        <button class="fab-3d js-open3d" type="button" aria-label="Open 3D Viewer Fullscreen (doors closed)">⤢</button>
-        <div class="fab-shield" aria-hidden="true"></div>
-      </div>
-
-      <div style="height:1px;background:var(--mid);border-radius:1px;margin:22px 0;"></div>
-
-      <!-- Doors open -->
-      <h3 style="font-size:1rem;font-weight:600;margin:10px 0 8px;">Doors open</h3>
-      <div class="viewer-wrap js-viewer" data-label="doors-open">
-        <div class="viewer js-viewer-inline">
-          {{THREED_IFRAME_URL}}
-        </div>
-        <button class="fab-3d js-open3d" type="button" aria-label="Open 3D Viewer Fullscreen (doors open)">⤢</button>
-        <div class="fab-shield" aria-hidden="true"></div>
+  <!-- Doors closed -->
+  <h3>Doors closed</h3>
+  <div class="viewer-wrap js-viewer" data-label="doors-closed">
+    <div class="viewer js-viewer-inline">
+      <div class="iframe-wrapper">
+        {{{THREED_IFRAME_URL_DOORS_ON}}}
       </div>
     </div>
+    <button class="fab-3d js-open3d" type="button">⤢</button>
+    <div class="fab-shield" aria-hidden="true"></div>
+  </div>
 
-    <!-- MATERIALS & HANDLES -->
+  <div style="height:1px;background:var(--mid);margin:22px 0;"></div>
+
+  <!-- Doors open -->
+  <h3>Doors open</h3>
+  <div class="viewer-wrap js-viewer" data-label="doors-open">
+    <div class="viewer js-viewer-inline">
+      <div class="iframe-wrapper">
+        {{{THREED_IFRAME_URL_DOORS_OFF}}}
+      </div>
+    </div>
+    <button class="fab-3d js-open3d" type="button">⤢</button>
+    <div class="fab-shield" aria-hidden="true"></div>
+  </div>
+</div>
+
+    <!-- MATERIALS -->
     <div class="section">
       <h2>Materials & Hardware</h2>
 
-      <div class="subhead">
-        Materials <div class="subhead-line"></div>
-      </div>
+      <div class="subhead">Materials <div class="subhead-line"></div></div>
 
       <div class="swatch-grid">
-        <!-- Material 1 (URL tokens used in <img>) -->
         <figure class="swatch-card">
           <img class="swatch-thumb" src="{{MATERIAL_1_THUMB}}" data-full="{{MATERIAL_1_THUMB}}" alt="{{MATERIAL_1_NAME}}"/>
           <figcaption class="swatch-caption">
@@ -245,13 +284,10 @@
           </figcaption>
         </figure>
 
-        <!-- Material 2+ (HTML blocks from generator) -->
         {{MATERIAL_2_BLOCK}}
       </div>
 
-      <div class="subhead" style="margin-top:28px;">
-        Handles <div class="subhead-line"></div>
-      </div>
+      <div class="subhead" style="margin-top:28px;">Handles <div class="subhead-line"></div></div>
 
       <div class="swatch-grid">
         {{HANDLE_1_BLOCK}}
@@ -273,9 +309,18 @@
         </thead>
         <tbody>{{LINE_ITEMS_HTML}}</tbody>
         <tfoot>
-          <tr><td colspan="3" class="num">Subtotal</td><td class="num">{{CURRENCY}}{{SUBTOTAL}}</td></tr>
-          <tr><td colspan="3" class="num">VAT (20%)</td><td class="num">{{CURRENCY}}{{VAT_AMOUNT}}</td></tr>
-          <tr class="total-row"><td colspan="3" class="num">Total</td><td class="num">{{CURRENCY}}{{TOTAL}}</td></tr>
+          <tr>
+            <td colspan="3" class="num">Subtotal</td>
+            <td class="num">{{CURRENCY}}{{SUBTOTAL}}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="num">VAT (20%)</td>
+            <td class="num">{{CURRENCY}}{{VAT_AMOUNT}}</td>
+          </tr>
+          <tr class="total-row">
+            <td colspan="3" class="num">Total</td>
+            <td class="num">{{CURRENCY}}{{TOTAL}}</td>
+          </tr>
         </tfoot>
       </table>
     </div>
@@ -288,21 +333,20 @@
 
   <!-- LIGHTBOX -->
   <div class="lightbox" id="lightbox" aria-hidden="true">
-    <span class="lightbox-close" id="lightbox-close" aria-label="Close image">&times;</span>
+    <span class="lightbox-close" id="lightbox-close">&times;</span>
     <img id="lightbox-img" src="" alt="">
   </div>
 
   <!-- FULLSCREEN 3D MODAL -->
-  <div class="modal3d" id="modal3d" aria-hidden="true" role="dialog" aria-label="3D Viewer Full Screen">
+  <div class="modal3d" id="modal3d" aria-hidden="true">
     <div class="modal3d-backdrop" id="modal3dBackdrop"></div>
-    <div class="modal3d-dialog" role="document" aria-modal="true">
-      <button class="modal3d-close" id="close3dFullscreen" type="button" aria-label="Close 3D Viewer">&times;</button>
+    <div class="modal3d-dialog">
+      <button class="modal3d-close" id="close3dFullscreen" type="button">&times;</button>
       <div class="modal3d-content" id="modal3dContent"></div>
     </div>
   </div>
 
-  <!-- GLOBAL viewer cover (for image lightbox masking) -->
-  <div id="viewerCover" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(2px);display:none;pointer-events:auto;"></div>
+  <div id="viewerCover"></div>
 
 </body>
 </html>
