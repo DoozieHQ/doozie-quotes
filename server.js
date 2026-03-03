@@ -24,7 +24,10 @@ if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 app.use('/uploads',   express.static(path.join(DATA_DIR, 'uploads')));
-app.use('/published', express.static(path.join(DATA_DIR, 'published')));
+app.use('/published', (req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  next();
+}, express.static(path.join(DATA_DIR, 'published')));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ensureDir(dir) {
@@ -550,6 +553,7 @@ function buildPublishedHTML(quote, settings) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
   <title>${quote.projectTitle || 'Quote'} — ${quote.id} v${quote.version}</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/online-3d-viewer@0.18.0/build/engine/o3dv.min.js"></script>
@@ -680,7 +684,7 @@ function buildPublishedHTML(quote, settings) {
 <div class="q-content">
   <div class="q-intro">
     <h1 class="q-title">${quote.projectTitle || ''}</h1>
-    <div class="q-pill">Prepared for ${quote.customer?.name || ''}${quote.createdAt ? ' &middot; ' + fmtDate(quote.createdAt) : ''}${quote.validUntil ? ' &middot; Valid until: ' + fmtDate(quote.validUntil) : ''}</div>
+    <div class="q-pill">${quote.createdAt ? fmtDate(quote.createdAt) : ''}${quote.validUntil ? ' &middot; Valid until: ' + fmtDate(quote.validUntil) : ''}</div>
   </div>
   ${overviewSection}
   ${modelsSection}
