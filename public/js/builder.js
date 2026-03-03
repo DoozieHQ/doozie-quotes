@@ -533,29 +533,9 @@ async function publishQuote() {
     updateHeader();
 
     // Populate the success modal
-    document.getElementById('pub-folder-path').textContent = data.folder;
-
-    const netlifyDiv  = document.getElementById('netlify-result');
-    const manualDiv   = document.getElementById('manual-result');
-    const errDiv      = document.getElementById('netlify-error-msg');
-    const urlLink     = document.getElementById('netlify-url-link');
-
-    if (data.netlifyUrl) {
-      urlLink.textContent = data.netlifyUrl;
-      urlLink.href        = data.netlifyUrl;
-      netlifyDiv.style.display = '';
-      manualDiv.style.display  = 'none';
-      errDiv.style.display     = 'none';
-    } else if (data.netlifyError) {
-      errDiv.textContent       = '⚠ Netlify deploy failed: ' + data.netlifyError;
-      errDiv.style.display     = '';
-      netlifyDiv.style.display = 'none';
-      manualDiv.style.display  = '';
-    } else {
-      netlifyDiv.style.display = 'none';
-      manualDiv.style.display  = '';
-      errDiv.style.display     = 'none';
-    }
+    const urlLink = document.getElementById('quote-url-link');
+    urlLink.textContent = data.quoteUrl;
+    urlLink.href        = data.quoteUrl;
 
     document.getElementById('success-modal').classList.add('open');
     showToast('Published!', 'success');
@@ -564,8 +544,8 @@ async function publishQuote() {
   }
 }
 
-function copyNetlifyUrl() {
-  const url = document.getElementById('netlify-url-link').textContent;
+function copyQuoteUrl() {
+  const url = document.getElementById('quote-url-link').textContent;
   navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success'));
 }
 

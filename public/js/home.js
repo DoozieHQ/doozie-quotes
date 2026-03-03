@@ -11,7 +11,7 @@ function actionBtns(q, isLatest) {
   const view = q.status === 'draft'
     ? `<a href="/builder.html?id=${q.filename}" class="btn btn-sm btn-primary">Edit</a>`
     : `<a href="/published/${q.id}-v${q.version}/" class="btn btn-sm btn-secondary" target="_blank">View</a>
-       ${q.netlifyUrl ? `<a href="${q.netlifyUrl}" class="btn btn-sm btn-gold" target="_blank">&#127758; Netlify</a>` : ''}`;
+       ${q.quoteUrl ? `<a href="${q.quoteUrl}" class="btn btn-sm btn-gold" target="_blank">&#127758; Live</a>` : ''}`;
 
   const mgmt = isLatest
     ? `<button class="btn btn-sm btn-secondary" onclick="newVersion('${q.filename}')">New Version</button>

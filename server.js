@@ -2,8 +2,6 @@ const express  = require('express');
 const multer   = require('multer');
 const fs       = require('fs');
 const path     = require('path');
-const https    = require('https');
-const archiver = require('archiver');
 
 const app      = express();
 const PORT     = process.env.PORT || 3000;
@@ -37,92 +35,10 @@ function defaultSettings() {
     companyName: '', companyLogo: null,
     defaultOverview: '', defaultTerms: '',
     defaultPaymentTerms: '', defaultScope: '', defaultNextSteps: '',
-    vatRate: 20, materialsLibrary: [], lineItemTemplates: [], quoteCounter: 0,
-    netlifyToken: ''
+    vatRate: 20, materialsLibrary: [], lineItemTemplates: [], quoteCounter: 0
   };
 }
 
-// ─── Netlify Deploy Helpers ───────────────────────────────────────────────────
-function netlifyRequest(method, apiPath, bodyBuffer, token, contentType) {
-  return new Promise((resolve, reject) => {
-    const opts = {
-      hostname: 'api.netlify.com',
-      port: 443,
-      path: `/api/v1${apiPath}`,
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(contentType ? { 'Content-Type': contentType } : {}),
-        ...(bodyBuffer   ? { 'Content-Length': bodyBuffer.length } : {})
-      }
-    };
-    const req = https.request(opts, res => {
-      const chunks = [];
-      res.on('data', c => chunks.push(c));
-      res.on('end', () => {
-        const raw = Buffer.concat(chunks).toString();
-        try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
-        catch { resolve({ status: res.statusCode, body: raw }); }
-      });
-    });
-    req.on('error', reject);
-    if (bodyBuffer) req.write(bodyBuffer);
-    req.end();
-  });
-}
-
-function netlifyJson(method, apiPath, jsonBody, token) {
-  const buf = jsonBody ? Buffer.from(JSON.stringify(jsonBody)) : null;
-  return netlifyRequest(method, apiPath, buf, token, 'application/json');
-}
-
-function zipDirectory(dirPath) {
-  return new Promise((resolve, reject) => {
-    const arc    = archiver('zip', { zlib: { level: 6 } });
-    const chunks = [];
-    arc.on('data',  c => chunks.push(c));
-    arc.on('end',   () => resolve(Buffer.concat(chunks)));
-    arc.on('error', reject);
-    arc.directory(dirPath, false);
-    arc.finalize();
-  });
-}
-
-async function deployToNetlify(pubDir, existingSiteId, token) {
-  // 1. Create site on first publish
-  let siteId = existingSiteId;
-  let siteUrl;
-  if (!siteId) {
-    const r = await netlifyJson('POST', '/sites', {}, token);
-    if (r.status !== 201) throw new Error(`Netlify: could not create site (${r.status})`);
-    siteId  = r.body.id;
-    siteUrl = `https://${r.body.default_domain}`;
-  } else {
-    const r = await netlifyJson('GET', `/sites/${siteId}`, null, token);
-    if (r.status === 200) siteUrl = `https://${r.body.default_domain}`;
-    else siteUrl = `https://${siteId}.netlify.app`;
-  }
-
-  // 2. Zip the published folder
-  const zipBuf = await zipDirectory(pubDir);
-
-  // 3. Deploy the zip
-  const deploy = await netlifyRequest('POST', `/sites/${siteId}/deploys`, zipBuf, token, 'application/zip');
-  if (deploy.status !== 200 && deploy.status !== 201)
-    throw new Error(`Netlify: deploy upload failed (${deploy.status}) ${JSON.stringify(deploy.body)}`);
-
-  const deployId = deploy.body.id;
-
-  // 4. Poll until ready (max ~60 s)
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 2000));
-    const s = await netlifyJson('GET', `/deploys/${deployId}`, null, token);
-    if (s.body.state === 'ready')  { siteUrl = s.body.ssl_url || siteUrl; break; }
-    if (s.body.state === 'error')  throw new Error('Netlify: deploy processing failed');
-  }
-
-  return { siteId, siteUrl };
-}
 
 function listQuotes() {
   const quotesDir = path.join(DATA_DIR, 'quotes');
@@ -139,7 +55,7 @@ function listQuotes() {
           projectTitle: q.projectTitle || '',
           createdAt: q.createdAt,
           total: q.total || 0,
-          netlifyUrl: q.netlifyUrl || null
+          quoteUrl: q.quoteUrl || null
         };
       } catch { return null; }
     })
@@ -248,7 +164,7 @@ app.post('/api/quotes/:id/version', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/quotes/:id/publish', async (req, res) => {
+app.post('/api/quotes/:id/publish', (req, res) => {
   const fp = path.join(DATA_DIR, 'quotes', req.params.id);
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
   try {
@@ -256,10 +172,12 @@ app.post('/api/quotes/:id/publish', async (req, res) => {
     const settings = loadSettings();
     quote.status      = 'published';
     quote.publishedAt = new Date().toISOString();
-    fs.writeFileSync(fp, JSON.stringify(quote, null, 2));
 
-    const pubId  = `${quote.id}-v${quote.version}`;
-    const pubDir = path.join(DATA_DIR, 'published', pubId);
+    const pubId   = `${quote.id}-v${quote.version}`;
+    const pubDir  = path.join(DATA_DIR, 'published', pubId);
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const quoteUrl = `${baseUrl}/published/${pubId}/`;
+
     ensureDir(path.join(pubDir, 'models'));
     ensureDir(path.join(pubDir, 'images'));
 
@@ -269,7 +187,7 @@ app.post('/api/quotes/:id/publish', async (req, res) => {
       fs.readdirSync(modSrc).forEach(f =>
         fs.copyFileSync(path.join(modSrc, f), path.join(pubDir, 'models', f)));
 
-    // Copy quote images (per-quote, not used currently but future-proof)
+    // Copy quote images
     const imgSrc = path.join(DATA_DIR, 'uploads', pubId, 'images');
     if (fs.existsSync(imgSrc))
       fs.readdirSync(imgSrc).forEach(f =>
@@ -291,34 +209,15 @@ app.post('/api/quotes/:id/publish', async (req, res) => {
         fs.copyFileSync(logoSrc, path.join(pubDir, settings.companyLogo));
     }
 
-    // Generate HTML
+    // Generate and write HTML
     const html = buildPublishedHTML(quote, settings);
     fs.writeFileSync(path.join(pubDir, 'index.html'), html, 'utf8');
 
-    // ── Netlify auto-deploy ──────────────────────────────────────────────────
-    let netlifyUrl    = quote.netlifyUrl    || null;
-    let netlifySiteId = quote.netlifySiteId || null;
-    const token = settings.netlifyToken;
+    // Persist quote URL back to quote JSON
+    quote.quoteUrl = quoteUrl;
+    fs.writeFileSync(fp, JSON.stringify(quote, null, 2));
 
-    if (token) {
-      try {
-        const result  = await deployToNetlify(path.resolve(pubDir), netlifySiteId, token);
-        netlifySiteId = result.siteId;
-        netlifyUrl    = result.siteUrl;
-
-        // Persist Netlify info back to quote JSON
-        const fresh = JSON.parse(fs.readFileSync(fp, 'utf8'));
-        fresh.netlifySiteId = netlifySiteId;
-        fresh.netlifyUrl    = netlifyUrl;
-        fs.writeFileSync(fp, JSON.stringify(fresh, null, 2));
-      } catch (netlifyErr) {
-        console.error('Netlify deploy error:', netlifyErr.message);
-        // Don't fail the whole publish — just report the issue
-        return res.json({ success: true, pubId, folder: path.resolve(pubDir), netlifyError: netlifyErr.message });
-      }
-    }
-
-    res.json({ success: true, pubId, folder: path.resolve(pubDir), netlifyUrl, netlifySiteId });
+    res.json({ success: true, pubId, quoteUrl });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

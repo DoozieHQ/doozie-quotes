@@ -9,7 +9,6 @@ async function init() {
 function populateForm() {
   setVal('s-company-name',   settings.companyName   || '');
   setVal('s-vat-rate',       settings.vatRate       || 20);
-  setVal('s-netlify-token',  settings.netlifyToken  || '');
   setHTML('s-default-overview',  settings.defaultOverview  || '');
   setHTML('s-default-terms',    settings.defaultTerms    || '');
   setHTML('s-default-payment',  settings.defaultPaymentTerms || '');
@@ -26,7 +25,6 @@ async function saveSettings() {
   const body = {
     companyName:         getVal('s-company-name'),
     vatRate:             parseFloat(getVal('s-vat-rate')) || 20,
-    netlifyToken:        getVal('s-netlify-token'),
     defaultOverview:     getHTML('s-default-overview'),
     defaultTerms:        getHTML('s-default-terms'),
     defaultPaymentTerms: getHTML('s-default-payment'),
