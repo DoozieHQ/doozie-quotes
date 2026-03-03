@@ -10,8 +10,7 @@ function fmtDate(d) {
 function actionBtns(q, isLatest) {
   const view = q.status === 'draft'
     ? `<a href="/builder.html?id=${q.filename}" class="btn btn-sm btn-primary">Edit</a>`
-    : `<a href="/published/${q.id}-v${q.version}/" class="btn btn-sm btn-secondary" target="_blank">View</a>
-       ${q.quoteUrl ? `<a href="${q.quoteUrl}" class="btn btn-sm btn-gold" target="_blank">&#127758; Live</a>` : ''}`;
+    : `<a href="${q.quoteUrl || `/published/${q.id}-v${q.version}/`}" class="btn btn-sm btn-gold" target="_blank">&#127758; View Quote</a>`;
 
   const mgmt = isLatest
     ? `<button class="btn btn-sm btn-secondary" onclick="newVersion('${q.filename}')">New Version</button>
