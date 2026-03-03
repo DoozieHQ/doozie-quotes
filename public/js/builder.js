@@ -88,14 +88,10 @@ function populateForm() {
   if (q.models?.closed) showExistingModel('closed', q.models.closed);
   if (q.models?.open)   showExistingModel('open',   q.models.open);
 
-  // Show texture areas if models already have textures
+  // Render texture file list for existing models
   ['closed','open'].forEach(type => {
     const m = q.models?.[type];
-    if (m) {
-      const sec = document.getElementById(`textures-${type}`);
-      if (sec) sec.style.display = '';
-      renderTextureList(type, typeof m === 'object' ? (m.textures || []) : []);
-    }
+    if (m) renderTextureList(type, typeof m === 'object' ? (m.textures || []) : []);
   });
 
   // Materials
