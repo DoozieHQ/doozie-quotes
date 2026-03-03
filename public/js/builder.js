@@ -13,6 +13,15 @@ async function init() {
   if (!quoteFilename) { window.location.href = '/'; return; }
 
   settings = await fetch('/api/settings').then(r => r.json());
+
+  // Show company logo in builder header
+  if (settings?.companyLogo) {
+    const img  = document.getElementById('header-logo-img');
+    const text = document.getElementById('header-logo-text');
+    if (img) { img.src = `/uploads/settings/${settings.companyLogo}`; img.style.display = ''; }
+    if (text) text.style.display = 'none';
+  }
+
   await loadQuote();
   populateMaterialsLibrary();
   populateTemplateDropdown();

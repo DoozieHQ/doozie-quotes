@@ -216,4 +216,19 @@ function showToast(msg, type = '') {
   setTimeout(() => { el.className = 'toast'; }, 3000);
 }
 
+// ── Header logo ───────────────────────────────────────────────────────────────
+async function loadHeader() {
+  try {
+    const s    = await fetch('/api/settings').then(r => r.json());
+    const img  = document.getElementById('header-logo-img');
+    const text = document.getElementById('header-logo-text');
+    if (s?.companyLogo && img) {
+      img.src = `/uploads/settings/${s.companyLogo}`;
+      img.style.display = '';
+      if (text) text.style.display = 'none';
+    }
+  } catch(e) { /* leave text fallback */ }
+}
+
+loadHeader();
 loadQuotes();

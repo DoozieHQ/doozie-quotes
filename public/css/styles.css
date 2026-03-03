@@ -40,6 +40,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   top: 0;
   z-index: 100;
 }
+.header-brand { display: flex; align-items: center; gap: 0.75rem; }
+.header-logo  { height: 36px; width: auto; object-fit: contain; display: block; }
 .app-header .logo { font-size: 1rem; font-weight: 700; letter-spacing: 0.02em; color: var(--black); }
 .app-header nav a {
   color: var(--dark);
@@ -50,6 +52,10 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   transition: opacity 0.15s;
 }
 .app-header nav a:hover, .app-header nav a.active { opacity: 1; color: var(--black); }
+
+/* ── Section heading (matches published quote style) ─────────────────────── */
+.section-heading { font-size: 1.15rem; font-weight: 600; color: var(--black); margin-bottom: 6px; }
+.section-underline { height: 2px; width: 48px; background: var(--gold); border-radius: 2px; margin-bottom: 1.25rem; }
 
 .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
 
