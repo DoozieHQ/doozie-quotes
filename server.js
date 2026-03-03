@@ -194,7 +194,12 @@ app.put('/api/quotes/:id', (req, res) => {
     updated.netTotal = totals.net; updated.vatAmount = totals.vat; updated.total = totals.total;
     fs.writeFileSync(fp, JSON.stringify(updated, null, 2));
     res.json(updated);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    const msg = e.code === 'ENOSPC'
+      ? 'Server storage is full — please increase volume size in Railway dashboard.'
+      : e.message;
+    res.status(500).json({ error: msg });
+  }
 });
 
 app.post('/api/quotes/:id/version', (req, res) => {
@@ -302,8 +307,12 @@ function modelStorage() {
 }
 
 app.post('/api/quotes/:id/upload/model/:modelType', (req, res) => {
-  multer({ storage: modelStorage() }).single('file')(req, res, err => {
-    if (err) return res.status(500).json({ error: err.message });
+  multer({ storage: modelStorage(), limits: { fileSize: 100 * 1024 * 1024 } }).single('file')(req, res, err => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large — maximum 100 MB per model.' });
+      if (err.code === 'ENOSPC') return res.status(507).json({ error: 'Server storage is full. Please contact support to increase storage.' });
+      return res.status(500).json({ error: err.message });
+    }
     if (!req.file) return res.status(400).json({ error: 'No file' });
     const filename = req.file.filename;
     const fp = path.join(DATA_DIR, 'quotes', req.params.id);

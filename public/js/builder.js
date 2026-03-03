@@ -183,7 +183,6 @@ async function uploadModel(input, type) {
     currentQuote.models[type] = { file: data.filename, textures: existingTextures };
     const uploadDir   = quoteFilename.replace('.json','');
     const textureUrls = existingTextures.map(t => `/uploads/${uploadDir}/models/${t}`);
-    showToast('Starting viewer…');
     showViewerPreview(type, data.url, textureUrls, file.name);
     // Show texture upload area
     const sec = document.getElementById(`textures-${type}`);
