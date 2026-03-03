@@ -225,15 +225,24 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
   const camKey = `ov_${quoteFilename.replace('.json','')}_${type}`;
   wrap.classList.add('visible');
   info.textContent = label || modelUrl.split('/').pop();
-  el.innerHTML = '';
-  // Force a synchronous layout reflow so the container has correct dimensions
-  // before WebGL initialises (the wrap transitions from display:none → block).
-  void el.offsetHeight;
-  if (typeof OV !== 'undefined') {
+
+  // Show a loading placeholder while the viewer initialises
+  el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:0.85rem;">Loading 3D model…</div>';
+
+  if (typeof OV === 'undefined') {
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer library failed to load — check your internet connection and reload.</div>';
+    return;
+  }
+
+  // Small delay so the browser has a full render cycle to lay out the container
+  // before WebGL reads its dimensions (fixes blank viewer after display:none → block).
+  setTimeout(() => {
+    el.innerHTML = '';
     try {
       const allUrls = [modelUrl, ...textureUrls];
       const ev = new OV.EmbeddedViewer(el, {
         backgroundColor: new OV.RGBAColor(248, 249, 250, 255),
+        defaultColor:    new OV.RGBColor(200, 200, 200),
         onModelLoaded: function() {
           try {
             const v   = ev.GetViewer();
@@ -258,14 +267,17 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
           } catch(e) {}
         },
         onModelError: function() {
-          el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, upload any required texture / MTL files using the section below.</div>';
+          el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, upload any required texture / MTL files in the section below.</div>';
           console.error('3D viewer: model failed to load —', modelUrl);
         }
       });
       ev.LoadModelFromUrlList(allUrls);
       viewerInstances[type] = ev;
-    } catch (e) { console.error('3D viewer init error:', e); }
-  }
+    } catch (e) {
+      console.error('3D viewer init error:', e);
+      el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer error: ' + e.message + '</div>';
+    }
+  }, 50);
 }
 
 function removeModel(type) {
