@@ -8,10 +8,18 @@ const app      = express();
 const PORT     = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 
-// ─── Basic Auth (admin only — /published/ stays public) ───────────────────────
+// ─── Kommo config ─────────────────────────────────────────────────────────────
+const KOMMO_DOMAIN    = process.env.KOMMO_DOMAIN;        // doozie.kommo.com
+const KOMMO_TOKEN     = process.env.KOMMO_API_TOKEN;
+const KOMMO_STAGE_ID  = process.env.KOMMO_STAGE_ID || '100659523';
+const KOMMO_URL_FIELD = process.env.KOMMO_QUOTE_URL_FIELD_ID; // numeric field id
+
+// ─── Basic Auth (admin only — /published/ + tracking + webhook stay public) ───
 if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
   app.use((req, res, next) => {
-    if (req.path.startsWith('/published/')) return next();
+    if (req.path.startsWith('/published/') ||
+        req.path.startsWith('/api/track/')  ||
+        req.path === '/api/kommo/webhook') return next();
     return basicAuth({
       users: { [process.env.ADMIN_USER]: process.env.ADMIN_PASS },
       challenge: true,
@@ -22,6 +30,7 @@ if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use('/uploads',   express.static(path.join(DATA_DIR, 'uploads')));
 app.use('/published', (req, res, next) => {
@@ -95,6 +104,33 @@ function calcTotals(items, vatRate, vatEnabled) {
   const net = (items || []).reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
   const vat = vatEnabled ? net * ((parseFloat(vatRate) || 20) / 100) : 0;
   return { net, vat, total: net + vat };
+}
+
+// ─── Kommo API helpers ────────────────────────────────────────────────────────
+async function kommoFetch(method, endpoint, body) {
+  if (!KOMMO_DOMAIN || !KOMMO_TOKEN) return null;
+  try {
+    const resp = await fetch(`https://${KOMMO_DOMAIN}/api/v4/${endpoint}`, {
+      method,
+      headers: { 'Authorization': `Bearer ${KOMMO_TOKEN}`, 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {})
+    });
+    if (!resp.ok) { console.error(`Kommo ${method} ${endpoint} → ${resp.status}`); return null; }
+    const text = await resp.text();
+    return text ? JSON.parse(text) : null;
+  } catch (e) { console.error('Kommo fetch error:', e.message); return null; }
+}
+
+async function kommoAddNote(leadId, text) {
+  return kommoFetch('POST', `leads/${leadId}/notes`, [{ note_type: 'common', params: { text } }]);
+}
+
+async function kommoSetQuoteUrl(leadId, quoteUrl) {
+  if (!KOMMO_URL_FIELD) return;
+  return kommoFetch('PATCH', 'leads', [{
+    id: leadId,
+    custom_fields_values: [{ field_id: parseInt(KOMMO_URL_FIELD), values: [{ value: quoteUrl }] }]
+  }]);
 }
 
 // ─── Quotes API ───────────────────────────────────────────────────────────────
@@ -226,12 +262,18 @@ app.post('/api/quotes/:id/publish', (req, res) => {
     }
 
     // Generate and write HTML
-    const html = buildPublishedHTML(quote, settings);
+    const html = buildPublishedHTML(quote, settings, baseUrl);
     fs.writeFileSync(path.join(pubDir, 'index.html'), html, 'utf8');
 
     // Persist quote URL back to quote JSON
     quote.quoteUrl = quoteUrl;
     fs.writeFileSync(fp, JSON.stringify(quote, null, 2));
+
+    // Notify Kommo if this quote is linked to a lead
+    if (quote.kommoLeadId) {
+      kommoSetQuoteUrl(quote.kommoLeadId, quoteUrl).catch(e => console.error('Kommo field error:', e.message));
+      kommoAddNote(quote.kommoLeadId, `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}`).catch(e => console.error('Kommo note error:', e.message));
+    }
 
     res.json({ success: true, pubId, quoteUrl });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -360,6 +402,101 @@ app.post('/api/settings/materials/:matId/upload', (req, res) => {
   });
 });
 
+// ─── Kommo Webhook ────────────────────────────────────────────────────────────
+app.post('/api/kommo/webhook', async (req, res) => {
+  res.sendStatus(200); // respond immediately — Kommo requires a fast reply
+  try {
+    const statuses = req.body?.leads?.status;
+    if (!statuses) return;
+
+    for (const entry of Object.values(statuses)) {
+      if (String(entry.status_id) !== String(KOMMO_STAGE_ID)) continue;
+
+      const leadId = parseInt(entry.id);
+      console.log(`Kommo webhook: lead ${leadId} moved to Quote Needed`);
+
+      // Fetch full lead with embedded contacts
+      const lead = await kommoFetch('GET', `leads/${leadId}?with=contacts`);
+      if (!lead) continue;
+
+      const leadName    = lead.name || '';
+      const contactRef  = lead._embedded?.contacts?.[0];
+      let contactName = '', contactEmail = '', contactPhone = '';
+
+      if (contactRef) {
+        const contact = await kommoFetch('GET', `contacts/${contactRef.id}`);
+        if (contact) {
+          contactName  = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+          const emailF = (contact.custom_fields_values || []).find(f => f.field_code === 'EMAIL');
+          contactEmail = emailF?.values?.[0]?.value || '';
+          const phoneF = (contact.custom_fields_values || []).find(f => f.field_code === 'PHONE');
+          contactPhone = phoneF?.values?.[0]?.value || '';
+        }
+      }
+
+      // Create draft quote
+      const s        = loadSettings();
+      const baseId   = nextQuoteId();
+      const version  = 1;
+      const filename = quoteFilename(baseId, version);
+      const quote = {
+        id: baseId, version, status: 'draft',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        validUntil: '',
+        kommoLeadId: leadId,
+        customer:   { name: contactName, address: '', email: contactEmail, phone: contactPhone },
+        projectTitle: leadName,
+        overview:     s.defaultOverview     || '',
+        models:       { closed: null, open: null },
+        materials:    [], lineItems: [],
+        vatRate: s.vatRate || 20, vatEnabled: true,
+        netTotal: 0, vatAmount: 0, total: 0,
+        termsAndConditions: s.defaultTerms        || '',
+        paymentTerms:       s.defaultPaymentTerms || '',
+        scope:              s.defaultScope        || '',
+        nextSteps:          s.defaultNextSteps    || ''
+      };
+
+      const quotesDir = path.join(DATA_DIR, 'quotes');
+      ensureDir(quotesDir);
+      ensureDir(path.join(DATA_DIR, 'uploads', `${baseId}-v${version}`, 'models'));
+      ensureDir(path.join(DATA_DIR, 'uploads', `${baseId}-v${version}`, 'images'));
+      fs.writeFileSync(path.join(quotesDir, filename), JSON.stringify(quote, null, 2));
+
+      // Add note to Kommo lead
+      await kommoAddNote(leadId, `📋 Quote ${baseId} has been created in the Quote Tool and is ready to work on.`);
+      console.log(`Kommo webhook: created quote ${baseId} for lead ${leadId}`);
+    }
+  } catch (e) { console.error('Kommo webhook error:', e.message); }
+});
+
+// ─── Quote View Tracking ──────────────────────────────────────────────────────
+const TRACKING_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+
+app.get('/api/track/:pubId', async (req, res) => {
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.end(TRACKING_GIF);
+
+  try {
+    const pubId = req.params.pubId;
+    const qFile = path.join(DATA_DIR, 'quotes', `${pubId}.json`);
+    if (!fs.existsSync(qFile)) return;
+    const quote = JSON.parse(fs.readFileSync(qFile, 'utf8'));
+    if (!quote.kommoLeadId) return;
+
+    // Throttle: only note once per hour to avoid spam
+    const now         = Date.now();
+    const lastViewed  = quote.lastViewedAt ? new Date(quote.lastViewedAt).getTime() : 0;
+    if (now - lastViewed < 3_600_000) return;
+
+    quote.lastViewedAt = new Date().toISOString();
+    fs.writeFileSync(qFile, JSON.stringify(quote, null, 2));
+
+    await kommoAddNote(quote.kommoLeadId, `👁️ Quote ${quote.id} v${quote.version} was opened by the customer.`);
+  } catch (e) { console.error('Track error:', e.message); }
+});
+
 // ─── Settings API ─────────────────────────────────────────────────────────────
 app.get('/api/settings', (req, res) => {
   try { res.json(loadSettings()); } catch (e) { res.status(500).json({ error: e.message }); }
@@ -436,7 +573,9 @@ function sanitiseHTML(html) {
   return (html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/on\w+="[^"]*"/gi, '');
 }
 
-function buildPublishedHTML(quote, settings) {
+function buildPublishedHTML(quote, settings, baseUrl) {
+  const pubId    = `${quote.id}-v${quote.version}`;
+  const trackUrl = `${baseUrl}/api/track/${pubId}`;
   const logoHTML = settings.companyLogo
     ? `<img src="./${settings.companyLogo}" alt="${settings.companyName}" class="company-logo">`
     : `<div class="company-name-text">${settings.companyName || ''}</div>`;
@@ -766,6 +905,7 @@ function buildPublishedHTML(quote, settings) {
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 </script>
+<img src="${trackUrl}" width="1" height="1" style="position:absolute;opacity:0;pointer-events:none" alt="">
 </body>
 </html>`;
 }
