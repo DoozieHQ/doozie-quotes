@@ -209,9 +209,11 @@
       <div class="form-group">
         <label class="form-label">Closed View</label>
         <div class="model-upload-area" onclick="document.getElementById('upload-closed').click()">
-          <input type="file" id="upload-closed" accept=".glb,.obj,.fbx,.stl,.3ds,.dae,.ply,.gltf" onchange="uploadModel(this,'closed')">
+          <input type="file" id="upload-closed" multiple
+            accept=".glb,.obj,.fbx,.stl,.3ds,.dae,.ply,.gltf,.jpg,.jpeg,.png,.bmp,.tga,.gif,.mtl,.mat"
+            onchange="uploadAllFiles(this,'closed')">
           <div class="model-upload-label">
-            <strong>Click to upload</strong> — GLB, OBJ, FBX, STL and more
+            <strong>Click to upload</strong> — Select your 3D model file and any texture or MTL files together in one go
           </div>
         </div>
         <div class="viewer-preview-wrap" id="wrap-closed">
@@ -220,31 +222,19 @@
             <button class="viewer-remove" onclick="removeModel('closed')">&#x2715; Remove</button>
           </div>
           <div class="viewer-preview" id="viewer-closed"></div>
+          <div id="texture-list-closed" class="texture-list" style="padding:0.5rem 0.75rem;flex-wrap:wrap;gap:0.35rem;"></div>
         </div>
-      </div>
-
-      <!-- Closed texture files -->
-      <div id="textures-closed" class="texture-upload-area" style="display:none">
-        <label class="form-label">
-          Texture &amp; Supporting Files
-          <span class="text-muted" style="font-weight:400">&nbsp;— required for .3ds, .obj and other multi-file formats</span>
-        </label>
-        <div class="model-upload-area" onclick="document.getElementById('upload-textures-closed').click()">
-          <input type="file" id="upload-textures-closed" multiple
-            accept=".jpg,.jpeg,.png,.bmp,.tga,.gif,.mtl,.mat"
-            onchange="uploadTextures(this,'closed')">
-          <div class="model-upload-label"><strong>Click to add</strong> — JPG, PNG, BMP, MTL and other supporting files (multiple allowed)</div>
-        </div>
-        <div id="texture-list-closed" class="texture-list"></div>
       </div>
 
       <!-- Open view -->
       <div class="form-group mt-2">
         <label class="form-label">Open View</label>
         <div class="model-upload-area" onclick="document.getElementById('upload-open').click()">
-          <input type="file" id="upload-open" accept=".glb,.obj,.fbx,.stl,.3ds,.dae,.ply,.gltf" onchange="uploadModel(this,'open')">
+          <input type="file" id="upload-open" multiple
+            accept=".glb,.obj,.fbx,.stl,.3ds,.dae,.ply,.gltf,.jpg,.jpeg,.png,.bmp,.tga,.gif,.mtl,.mat"
+            onchange="uploadAllFiles(this,'open')">
           <div class="model-upload-label">
-            <strong>Click to upload</strong> — GLB, OBJ, FBX, STL and more
+            <strong>Click to upload</strong> — Select your 3D model file and any texture or MTL files together in one go
           </div>
         </div>
         <div class="viewer-preview-wrap" id="wrap-open">
@@ -253,22 +243,8 @@
             <button class="viewer-remove" onclick="removeModel('open')">&#x2715; Remove</button>
           </div>
           <div class="viewer-preview" id="viewer-open"></div>
+          <div id="texture-list-open" class="texture-list" style="padding:0.5rem 0.75rem;flex-wrap:wrap;gap:0.35rem;"></div>
         </div>
-      </div>
-
-      <!-- Open texture files -->
-      <div id="textures-open" class="texture-upload-area" style="display:none">
-        <label class="form-label">
-          Texture &amp; Supporting Files
-          <span class="text-muted" style="font-weight:400">&nbsp;— required for .3ds, .obj and other multi-file formats</span>
-        </label>
-        <div class="model-upload-area" onclick="document.getElementById('upload-textures-open').click()">
-          <input type="file" id="upload-textures-open" multiple
-            accept=".jpg,.jpeg,.png,.bmp,.tga,.gif,.mtl,.mat"
-            onchange="uploadTextures(this,'open')">
-          <div class="model-upload-label"><strong>Click to add</strong> — JPG, PNG, BMP, MTL and other supporting files (multiple allowed)</div>
-        </div>
-        <div id="texture-list-open" class="texture-list"></div>
       </div>
 
     </div>

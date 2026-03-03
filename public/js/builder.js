@@ -213,33 +213,64 @@ function setupChangeListeners() {
 }
 
 // ── 3D Models ─────────────────────────────────────────────────────────────────
-async function uploadModel(input, type) {
+const MODEL_EXTS   = new Set(['.glb','.obj','.fbx','.stl','.3ds','.dae','.ply','.gltf']);
+const TEXTURE_EXTS = new Set(['.jpg','.jpeg','.png','.bmp','.tga','.gif','.mtl','.mat']);
+
+async function uploadAllFiles(input, type) {
+  if (!input.files.length) return;
+  const allFiles     = Array.from(input.files);
+  const fileExt      = f => f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+  const modelFiles   = allFiles.filter(f => MODEL_EXTS.has(fileExt(f)));
+  const textureFiles = allFiles.filter(f => TEXTURE_EXTS.has(fileExt(f)));
+
+  if (modelFiles.length === 0) {
+    showToast('No 3D model file found — include a GLB, OBJ, FBX, STL, 3DS or similar file.', 'error');
+    input.value = ''; return;
+  }
+  if (modelFiles.length > 1) {
+    showToast('More than one model file selected — include only one main model file plus any texture/MTL files.', 'error');
+    input.value = ''; return;
+  }
+
   try {
-    const file = input.files[0];
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
     showToast('Uploading…');
-    const res  = await fetch(`/api/quotes/${quoteFilename}/upload/model/${type}`, { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!data.success) { showToast('Upload failed', 'error'); return; }
-    showToast('Uploaded');
+
+    // 1 — upload the model file
+    const modelFd = new FormData();
+    modelFd.append('file', modelFiles[0]);
+    const modelRes  = await fetch(`/api/quotes/${quoteFilename}/upload/model/${type}`, { method: 'POST', body: modelFd });
+    const modelData = await modelRes.json();
+    if (!modelData.success) { showToast(modelData.error || 'Upload failed', 'error'); return; }
+
     if (!currentQuote.models) currentQuote.models = {};
-    // Preserve existing textures when replacing the model file
-    const existingTextures = (typeof currentQuote.models[type] === 'object')
-      ? (currentQuote.models[type]?.textures || []) : [];
-    currentQuote.models[type] = { file: data.filename, textures: existingTextures };
+    currentQuote.models[type] = { file: modelData.filename, textures: [] };
+
+    // 2 — upload supporting / texture files if any
+    let textureFilenames = [];
+    if (textureFiles.length) {
+      const texFd = new FormData();
+      for (const f of textureFiles) texFd.append('files', f);
+      const texRes  = await fetch(`/api/quotes/${quoteFilename}/upload/textures/${type}`, { method: 'POST', body: texFd });
+      const texData = await texRes.json();
+      if (texData.success) {
+        textureFilenames = texData.filenames;
+        currentQuote.models[type].textures = textureFilenames;
+      }
+    }
+
+    // 3 — show viewer
     const uploadDir   = quoteFilename.replace('.json','');
-    const textureUrls = existingTextures.map(t => `/uploads/${uploadDir}/models/${t}`);
-    showViewerPreview(type, data.url, textureUrls, file.name);
-    // Show texture upload area
-    const sec = document.getElementById(`textures-${type}`);
-    if (sec) sec.style.display = '';
+    const textureUrls = textureFilenames.map(t => `/uploads/${uploadDir}/models/${t}`);
+    showViewerPreview(type, modelData.url, textureUrls, modelFiles[0].name);
+    renderTextureList(type, textureFilenames);
+
     scheduleAutoSave();
+    showToast('Uploaded');
   } catch(e) {
     showToast('Upload error: ' + e.message, 'error');
-    console.error('uploadModel error:', e);
+    console.error('uploadAllFiles error:', e);
   }
+  input.value = '';
 }
 
 function showExistingModel(type, modelData) {
@@ -336,39 +367,9 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
 function removeModel(type) {
   document.getElementById(`wrap-${type}`).classList.remove('visible');
   document.getElementById(`viewer-${type}`).innerHTML = '';
-  const sec = document.getElementById(`textures-${type}`);
-  if (sec) sec.style.display = 'none';
   renderTextureList(type, []);
   if (currentQuote.models) currentQuote.models[type] = null;
   document.getElementById(`upload-${type}`).value = '';
-  scheduleAutoSave();
-}
-
-// ── Texture files ─────────────────────────────────────────────────────────────
-async function uploadTextures(input, type) {
-  if (!input.files.length) return;
-  const fd = new FormData();
-  for (const f of input.files) fd.append('files', f);
-  showToast('Uploading textures…');
-  const res  = await fetch(`/api/quotes/${quoteFilename}/upload/textures/${type}`, { method: 'POST', body: fd });
-  const data = await res.json();
-  if (!data.success) { showToast('Upload failed', 'error'); return; }
-  // Update currentQuote
-  if (!currentQuote.models) currentQuote.models = {};
-  const cur  = currentQuote.models[type];
-  const file = cur ? (typeof cur === 'string' ? cur : cur.file) : null;
-  const prev = (typeof cur === 'object') ? (cur.textures || []) : [];
-  currentQuote.models[type] = { file, textures: [...new Set([...prev, ...data.filenames])] };
-  renderTextureList(type, currentQuote.models[type].textures);
-  // Reinit viewer with new textures
-  if (file) {
-    const uploadDir   = quoteFilename.replace('.json','');
-    const modelUrl    = `/uploads/${uploadDir}/models/${file}`;
-    const textureUrls = currentQuote.models[type].textures.map(t => `/uploads/${uploadDir}/models/${t}`);
-    showViewerPreview(type, modelUrl, textureUrls, file);
-  }
-  input.value = '';
-  showToast('Textures uploaded');
   scheduleAutoSave();
 }
 
