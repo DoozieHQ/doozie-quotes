@@ -473,10 +473,21 @@ app.post('/api/kommo/webhook', async (req, res) => {
 // ─── Quote View Tracking ──────────────────────────────────────────────────────
 const TRACKING_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
+function isAdminRequest(req) {
+  if (!process.env.ADMIN_USER || !process.env.ADMIN_PASS) return false;
+  const auth = req.headers['authorization'];
+  if (!auth || !auth.startsWith('Basic ')) return false;
+  const [user, pass] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
+  return user === process.env.ADMIN_USER && pass === process.env.ADMIN_PASS;
+}
+
 app.get('/api/track/:pubId', async (req, res) => {
   res.setHeader('Content-Type', 'image/gif');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.end(TRACKING_GIF);
+
+  // Don't track views from the authenticated admin
+  if (isAdminRequest(req)) return;
 
   try {
     const pubId = req.params.pubId;
