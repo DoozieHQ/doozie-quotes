@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
 
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -10,6 +10,7 @@ body {
 a { text-decoration: none; color: inherit; }
 button { cursor: pointer; font-family: inherit; font-size: inherit; }
 input, textarea, select { font-family: inherit; font-size: inherit; }
+strong, b { font-weight: 600; }
 
 /* ── Colours ─────────────────────────────────────────────────────────────── */
 :root {
@@ -42,7 +43,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 }
 .header-brand { display: flex; align-items: center; gap: 0.75rem; }
 .header-logo  { height: 36px; width: auto; object-fit: contain; display: block; }
-.app-header .logo { font-size: 1rem; font-weight: 700; letter-spacing: 0.02em; color: var(--black); }
+.app-header .logo { font-size: 1rem; font-weight: 600; letter-spacing: 0.02em; color: var(--black); }
 .app-header nav a {
   color: var(--dark);
   opacity: 0.6;
@@ -70,7 +71,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .btn-primary:hover   { background: var(--dark); }
 .btn-secondary { background: #fff; color: var(--dark); border-color: var(--border); }
 .btn-secondary:hover { background: var(--light); border-color: var(--dark); }
-.btn-gold      { background: var(--yellow); color: var(--black); border-color: var(--yellow); font-weight: 700; }
+.btn-gold      { background: var(--yellow); color: var(--black); border-color: var(--yellow); font-weight: 600; }
 .btn-gold:hover      { background: #e6b400; border-color: #e6b400; }
 .btn-danger    { background: #fff; color: var(--danger); border-color: var(--border); }
 .btn-danger:hover    { background: #fff5f5; border-color: var(--danger); }
@@ -87,7 +88,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .card-header {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
