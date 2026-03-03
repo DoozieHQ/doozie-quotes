@@ -684,7 +684,7 @@ function buildPublishedHTML(quote, settings) {
 <div class="q-content">
   <div class="q-intro">
     <h1 class="q-title">${quote.projectTitle || ''}</h1>
-    <div class="q-pill">${quote.createdAt ? fmtDate(quote.createdAt) : ''}${quote.validUntil ? ' &middot; Valid until: ' + fmtDate(quote.validUntil) : ''}</div>
+    <div class="q-pill">Prepared for ${quote.customer?.name || ''}${quote.createdAt ? ' &middot; ' + fmtDate(quote.createdAt) : ''}${quote.validUntil ? ' &middot; Valid until: ' + fmtDate(quote.validUntil) : ''}</div>
   </div>
   ${overviewSection}
   ${modelsSection}
