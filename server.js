@@ -1,11 +1,24 @@
-const express  = require('express');
-const multer   = require('multer');
-const fs       = require('fs');
-const path     = require('path');
+const express   = require('express');
+const multer    = require('multer');
+const fs        = require('fs');
+const path      = require('path');
+const basicAuth = require('express-basic-auth');
 
 const app      = express();
 const PORT     = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
+
+// ─── Basic Auth (admin only — /published/ stays public) ───────────────────────
+if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/published/')) return next();
+    return basicAuth({
+      users: { [process.env.ADMIN_USER]: process.env.ADMIN_PASS },
+      challenge: true,
+      realm: 'Doozie Quote Tool'
+    })(req, res, next);
+  });
+}
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
