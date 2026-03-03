@@ -219,6 +219,10 @@ async function uploadAllFiles(input, type) {
   const modelFiles   = allFiles.filter(f => MODEL_EXTS.has(fileExt(f)));
   const textureFiles = allFiles.filter(f => TEXTURE_EXTS.has(fileExt(f)));
 
+  console.log('[3D Upload] Files selected:', allFiles.map(f => f.name));
+  console.log('[3D Upload] Model files:', modelFiles.map(f => f.name));
+  console.log('[3D Upload] Texture files:', textureFiles.map(f => f.name));
+
   if (modelFiles.length === 0) {
     showToast('No 3D model file found — include a GLB, OBJ, FBX, STL, 3DS or similar file.', 'error');
     input.value = ''; return;
@@ -236,6 +240,7 @@ async function uploadAllFiles(input, type) {
     modelFd.append('file', modelFiles[0]);
     const modelRes  = await fetch(`/api/quotes/${quoteFilename}/upload/model/${type}`, { method: 'POST', body: modelFd });
     const modelData = await modelRes.json();
+    console.log('[3D Upload] Model upload response:', modelData);
     if (!modelData.success) { showToast(modelData.error || 'Upload failed', 'error'); return; }
 
     if (!currentQuote.models) currentQuote.models = {};
@@ -248,6 +253,7 @@ async function uploadAllFiles(input, type) {
       for (const f of textureFiles) texFd.append('files', f);
       const texRes  = await fetch(`/api/quotes/${quoteFilename}/upload/textures/${type}`, { method: 'POST', body: texFd });
       const texData = await texRes.json();
+      console.log('[3D Upload] Texture upload response:', texData);
       if (texData.success) {
         textureFilenames = texData.filenames;
         currentQuote.models[type].textures = textureFilenames;
@@ -257,6 +263,7 @@ async function uploadAllFiles(input, type) {
     // 3 — show viewer
     const uploadDir   = quoteFilename.replace('.json','');
     const textureUrls = textureFilenames.map(t => `/uploads/${uploadDir}/models/${t}`);
+    console.log('[3D Upload] Calling showViewerPreview with modelUrl:', modelData.url);
     showViewerPreview(type, modelData.url, textureUrls, modelFiles[0].name);
     renderTextureList(type, textureFilenames);
 
@@ -264,7 +271,7 @@ async function uploadAllFiles(input, type) {
     showToast('Uploaded');
   } catch(e) {
     showToast('Upload error: ' + e.message, 'error');
-    console.error('uploadAllFiles error:', e);
+    console.error('[3D Upload] uploadAllFiles error:', e);
   }
   input.value = '';
 }
@@ -299,10 +306,18 @@ function objToCam(d) {
 }
 
 function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
+  console.log('[3D Viewer] showViewerPreview called:', { type, modelUrl, textureUrls, label });
+
   const wrap   = document.getElementById(`wrap-${type}`);
   const info   = document.getElementById(`info-${type}`);
   const el     = document.getElementById(`viewer-${type}`);
   const camKey = `ov_${quoteFilename.replace('.json','')}_${type}`;
+
+  if (!wrap || !el) {
+    console.error('[3D Viewer] Could not find DOM elements for type:', type);
+    return;
+  }
+
   wrap.classList.add('visible');
   info.textContent = label || modelUrl.split('/').pop();
 
@@ -310,54 +325,65 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
   el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:0.85rem;">Loading 3D model…</div>';
 
   if (typeof OV === 'undefined') {
+    console.error('[3D Viewer] OV library is not loaded!');
     el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer library failed to load — check your internet connection and reload.</div>';
     return;
   }
 
-  // Small delay so the browser has a full render cycle to lay out the container
-  // before WebGL reads its dimensions (fixes blank viewer after display:none → block).
+  // Wait for the browser to lay out the container (display:none → display:block)
+  // then use requestAnimationFrame to ensure at least one render cycle has occurred
+  // before WebGL reads the element dimensions.
   setTimeout(() => {
-    el.innerHTML = '';
-    try {
-      const allUrls = [modelUrl, ...textureUrls];
-      const ev = new OV.EmbeddedViewer(el, {
-        backgroundColor: new OV.RGBAColor(248, 249, 250, 255),
-        defaultColor:    new OV.RGBColor(200, 200, 200),
-        onModelLoaded: function() {
-          try {
-            const v   = ev.GetViewer();
-            const nav = v && v.navigation;
-            const saved = localStorage.getItem(camKey);
-            if (saved && nav && nav.MoveCamera) {
-              nav.MoveCamera(objToCam(JSON.parse(saved)), 0);
-            } else if (v && v.FitToWindow) {
-              v.FitToWindow(true);
-            }
-            let t;
-            const save = () => {
-              try {
-                const c = nav && nav.GetCamera && nav.GetCamera();
-                if (c) localStorage.setItem(camKey, JSON.stringify(camToObj(c)));
-              } catch(e) {}
-            };
-            const debounce = () => { clearTimeout(t); t = setTimeout(save, 600); };
-            el.addEventListener('mouseup',  debounce);
-            el.addEventListener('touchend', debounce);
-            el.addEventListener('wheel',    debounce, { passive: true });
-          } catch(e) {}
-        },
-        onModelError: function() {
-          el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, upload any required texture / MTL files in the section below.</div>';
-          console.error('3D viewer: model failed to load —', modelUrl);
-        }
-      });
-      ev.LoadModelFromUrlList(allUrls);
-      viewerInstances[type] = ev;
-    } catch (e) {
-      console.error('3D viewer init error:', e);
-      el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer error: ' + e.message + '</div>';
-    }
-  }, 50);
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      console.log('[3D Viewer] Container dimensions at init:', { w: rect.width, h: rect.height, type });
+
+      el.innerHTML = '';
+      try {
+        const allUrls = [modelUrl, ...textureUrls];
+        console.log('[3D Viewer] Loading URLs:', allUrls);
+
+        const ev = new OV.EmbeddedViewer(el, {
+          backgroundColor: new OV.RGBAColor(248, 249, 250, 255),
+          defaultColor:    new OV.RGBColor(200, 200, 200),
+          onModelLoaded: function() {
+            console.log('[3D Viewer] Model loaded successfully:', modelUrl);
+            try {
+              const v   = ev.GetViewer();
+              const nav = v && v.navigation;
+              const saved = localStorage.getItem(camKey);
+              if (saved && nav && nav.MoveCamera) {
+                nav.MoveCamera(objToCam(JSON.parse(saved)), 0);
+              } else if (v && v.FitToWindow) {
+                v.FitToWindow(true);
+              }
+              let t;
+              const save = () => {
+                try {
+                  const c = nav && nav.GetCamera && nav.GetCamera();
+                  if (c) localStorage.setItem(camKey, JSON.stringify(camToObj(c)));
+                } catch(e) {}
+              };
+              const debounce = () => { clearTimeout(t); t = setTimeout(save, 600); };
+              el.addEventListener('mouseup',  debounce);
+              el.addEventListener('touchend', debounce);
+              el.addEventListener('wheel',    debounce, { passive: true });
+            } catch(e) { console.error('[3D Viewer] Camera restore error:', e); }
+          },
+          onModelError: function() {
+            console.error('[3D Viewer] Model failed to load:', modelUrl);
+            el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, upload any required texture / MTL files in the section below.</div>';
+          }
+        });
+        ev.LoadModelFromUrlList(allUrls);
+        viewerInstances[type] = ev;
+        console.log('[3D Viewer] EmbeddedViewer created and loading started');
+      } catch (e) {
+        console.error('[3D Viewer] Init error:', e);
+        el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer error: ' + e.message + '</div>';
+      }
+    });
+  }, 300);
 }
 
 function removeModel(type) {
