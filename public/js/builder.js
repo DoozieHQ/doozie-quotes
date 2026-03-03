@@ -63,9 +63,6 @@ function scheduleAutoSave() {
 function populateForm() {
   const q = currentQuote;
   setVal('f-customer-name',    q.customer?.name    || '');
-  setVal('f-customer-address', q.customer?.address || '');
-  setVal('f-customer-email',   q.customer?.email   || '');
-  setVal('f-customer-phone',   q.customer?.phone   || '');
   setVal('f-project-title',    q.projectTitle      || '');
   setVal('f-valid-until',      q.validUntil        || '');
 
@@ -114,10 +111,7 @@ function collectFormData() {
   const vat   = vatEnabled ? net * (vatRate / 100) : 0;
   return {
     customer: {
-      name:    getVal('f-customer-name'),
-      address: getVal('f-customer-address'),
-      email:   getVal('f-customer-email'),
-      phone:   getVal('f-customer-phone')
+      name: getVal('f-customer-name')
     },
     projectTitle: getVal('f-project-title'),
     validUntil:   getVal('f-valid-until'),
@@ -139,6 +133,51 @@ function getVal(id) { return document.getElementById(id)?.value || ''; }
 function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
 function getHTML(id) { return document.getElementById(id)?.innerHTML || ''; }
 function setHTML(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+
+// ── Kommo Lead Link ───────────────────────────────────────────────────────────
+function toggleKommoPanel() {
+  const panel = document.getElementById('kommo-panel');
+  const open  = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : '';
+  if (!open) {
+    document.getElementById('kommo-lead-input').focus();
+    document.getElementById('kommo-status').textContent = '';
+  }
+}
+
+async function linkKommoLead() {
+  const raw    = document.getElementById('kommo-lead-input').value.trim();
+  const status = document.getElementById('kommo-status');
+  if (!raw) { status.textContent = 'Please enter a lead URL or ID.'; return; }
+
+  // Extract numeric ID from URL or raw input
+  const match = raw.match(/(\d+)\/?$/);
+  if (!match) { status.textContent = 'Could not find a lead ID — paste the full Kommo lead URL or just the numeric ID.'; return; }
+  const leadId = match[1];
+
+  status.textContent = 'Fetching lead…';
+  try {
+    const res  = await fetch(`/api/kommo/leads/${leadId}`);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      status.textContent = data.error || 'Failed to fetch lead.';
+      status.style.color = 'var(--danger)';
+      return;
+    }
+    // Populate fields
+    if (data.contactName) setVal('f-customer-name', data.contactName);
+    if (data.leadName)    setVal('f-project-title',  data.leadName);
+    // Store kommoLeadId on the quote so tracking/notes still work
+    currentQuote.kommoLeadId = parseInt(leadId);
+    scheduleAutoSave();
+    status.textContent = '✓ Fields updated';
+    status.style.color = 'var(--green)';
+    setTimeout(toggleKommoPanel, 1500);
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
 
 // ── Header ────────────────────────────────────────────────────────────────────
 function updateHeader() {

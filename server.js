@@ -427,6 +427,29 @@ app.post('/api/settings/materials/:matId/upload', (req, res) => {
 });
 
 // ─── Kommo Webhook ────────────────────────────────────────────────────────────
+// ─── Kommo lead lookup (used by builder "Link Kommo Lead" button) ─────────────
+app.get('/api/kommo/leads/:id', async (req, res) => {
+  if (!KOMMO_DOMAIN || !KOMMO_TOKEN) return res.status(503).json({ error: 'Kommo is not configured on this server.' });
+  const leadId = parseInt(req.params.id);
+  if (!leadId) return res.status(400).json({ error: 'Invalid lead ID.' });
+
+  const lead = await kommoFetch('GET', `leads/${leadId}?with=contacts`);
+  if (!lead) return res.status(404).json({ error: `Lead ${leadId} not found in Kommo.` });
+
+  const leadName   = lead.name || '';
+  const contactRef = lead._embedded?.contacts?.[0];
+  let contactName = '';
+
+  if (contactRef) {
+    const contact = await kommoFetch('GET', `contacts/${contactRef.id}`);
+    if (contact) {
+      contactName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+    }
+  }
+
+  res.json({ leadId, leadName, contactName });
+});
+
 app.post('/api/kommo/webhook', async (req, res) => {
   res.sendStatus(200); // respond immediately — Kommo requires a fast reply
   try {
