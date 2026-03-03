@@ -202,6 +202,20 @@ app.put('/api/quotes/:id', (req, res) => {
   }
 });
 
+app.delete('/api/quotes/:id', (req, res) => {
+  const fp = path.join(DATA_DIR, 'quotes', req.params.id);
+  if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const id = req.params.id.replace('.json', '');
+    fs.unlinkSync(fp);
+    const uploadDir = path.join(DATA_DIR, 'uploads', id);
+    if (fs.existsSync(uploadDir)) fs.rmSync(uploadDir, { recursive: true, force: true });
+    const pubDir = path.join(DATA_DIR, 'published', id);
+    if (fs.existsSync(pubDir)) fs.rmSync(pubDir, { recursive: true, force: true });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/quotes/:id/version', (req, res) => {
   const fp = path.join(DATA_DIR, 'quotes', req.params.id);
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });

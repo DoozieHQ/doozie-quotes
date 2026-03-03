@@ -17,7 +17,9 @@ function actionBtns(q, isLatest) {
        <button class="btn btn-sm btn-secondary" onclick="duplicateQuote('${q.filename}')">Duplicate</button>`
     : '';
 
-  return `<div class="actions">${view}${mgmt}</div>`;
+  const del = `<button class="btn btn-sm btn-danger" onclick="deleteQuote('${q.filename}','${q.id} v${q.version}')">Delete</button>`;
+
+  return `<div class="actions">${view}${mgmt}${del}</div>`;
 }
 
 // ── Row renderers ─────────────────────────────────────────────────────────────
@@ -154,6 +156,20 @@ async function newVersion(filename) {
   );
 }
 
+async function deleteQuote(filename, label) {
+  showConfirm(
+    'Delete quote?',
+    `This will permanently delete ${label} and all its uploaded files (3D models, images). This cannot be undone.`,
+    async () => {
+      const res  = await fetch(`/api/quotes/${filename}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) { showToast('Quote deleted'); loadQuotes(); }
+      else showToast(data.error || 'Delete failed', 'error');
+    },
+    true // danger mode — red confirm button
+  );
+}
+
 async function duplicateQuote(filename) {
   showConfirm(
     'Duplicate this quote?',
@@ -179,10 +195,13 @@ async function duplicateQuote(filename) {
 }
 
 // ── Confirm dialog ────────────────────────────────────────────────────────────
-function showConfirm(title, msg, onOk) {
+function showConfirm(title, msg, onOk, danger = false) {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-msg').textContent   = msg;
-  document.getElementById('confirm-ok').onclick = () => { closeConfirm(); onOk(); };
+  const okBtn = document.getElementById('confirm-ok');
+  okBtn.className   = `btn ${danger ? 'btn-danger' : 'btn-gold'}`;
+  okBtn.textContent = danger ? 'Delete' : 'Confirm';
+  okBtn.onclick = () => { closeConfirm(); onOk(); };
   document.getElementById('confirm-overlay').classList.add('open');
 }
 function closeConfirm() {
