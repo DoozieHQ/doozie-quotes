@@ -18,6 +18,7 @@ const KOMMO_URL_FIELD = process.env.KOMMO_QUOTE_URL_FIELD_ID; // numeric field i
 if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
   app.use((req, res, next) => {
     if (req.path.startsWith('/published/') ||
+        req.path.startsWith('/uploads/')    ||
         req.path.startsWith('/api/track/')  ||
         req.path === '/api/kommo/webhook') return next();
     return basicAuth({

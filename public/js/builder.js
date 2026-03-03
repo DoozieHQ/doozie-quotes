@@ -226,6 +226,9 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
   wrap.classList.add('visible');
   info.textContent = label || modelUrl.split('/').pop();
   el.innerHTML = '';
+  // Force a synchronous layout reflow so the container has correct dimensions
+  // before WebGL initialises (the wrap transitions from display:none → block).
+  void el.offsetHeight;
   if (typeof OV !== 'undefined') {
     try {
       const allUrls = [modelUrl, ...textureUrls];
@@ -253,6 +256,10 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
             el.addEventListener('touchend', debounce);
             el.addEventListener('wheel',    debounce, { passive: true });
           } catch(e) {}
+        },
+        onModelError: function() {
+          el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, upload any required texture / MTL files using the section below.</div>';
+          console.error('3D viewer: model failed to load —', modelUrl);
         }
       });
       ev.LoadModelFromUrlList(allUrls);
