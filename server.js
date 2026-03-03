@@ -405,11 +405,13 @@ app.post('/api/settings/materials/:matId/upload', (req, res) => {
 // ─── Kommo Webhook ────────────────────────────────────────────────────────────
 app.post('/api/kommo/webhook', async (req, res) => {
   res.sendStatus(200); // respond immediately — Kommo requires a fast reply
+  console.log('Kommo webhook received — body:', JSON.stringify(req.body));
   try {
     const statuses = req.body?.leads?.status;
-    if (!statuses) return;
+    if (!statuses) { console.log('Kommo webhook: no leads.status in body'); return; }
 
     for (const entry of Object.values(statuses)) {
+      console.log(`Kommo webhook: entry status_id=${entry.status_id} vs expected=${KOMMO_STAGE_ID}`);
       if (String(entry.status_id) !== String(KOMMO_STAGE_ID)) continue;
 
       const leadId = parseInt(entry.id);
