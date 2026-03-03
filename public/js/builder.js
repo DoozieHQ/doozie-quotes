@@ -212,16 +212,27 @@ function setupChangeListeners() {
 const MODEL_EXTS   = new Set(['.glb','.obj','.fbx','.stl','.3ds','.dae','.ply','.gltf']);
 const TEXTURE_EXTS = new Set(['.jpg','.jpeg','.png','.bmp','.tga','.gif','.mtl','.mat']);
 
+// Fetch with one automatic retry on network failure (handles ERR_HTTP2_PROTOCOL_ERROR)
+async function fetchWithRetry(url, options, retries = 1, delayMs = 1500) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, delayMs));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function uploadAllFiles(input, type) {
   if (!input.files.length) return;
   const allFiles     = Array.from(input.files);
   const fileExt      = f => f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
   const modelFiles   = allFiles.filter(f => MODEL_EXTS.has(fileExt(f)));
   const textureFiles = allFiles.filter(f => TEXTURE_EXTS.has(fileExt(f)));
-
-  console.log('[3D Upload] Files selected:', allFiles.map(f => f.name));
-  console.log('[3D Upload] Model files:', modelFiles.map(f => f.name));
-  console.log('[3D Upload] Texture files:', textureFiles.map(f => f.name));
 
   if (modelFiles.length === 0) {
     showToast('No 3D model file found — include a GLB, OBJ, FBX, STL, 3DS or similar file.', 'error');
@@ -235,25 +246,29 @@ async function uploadAllFiles(input, type) {
   try {
     showToast('Uploading…');
 
-    // 1 — upload the model file
+    // 1 — upload the model file (retry once on network error)
     const modelFd = new FormData();
     modelFd.append('file', modelFiles[0]);
-    const modelRes  = await fetch(`/api/quotes/${quoteFilename}/upload/model/${type}`, { method: 'POST', body: modelFd });
+    const modelRes  = await fetchWithRetry(
+      `/api/quotes/${quoteFilename}/upload/model/${type}`,
+      { method: 'POST', body: modelFd }
+    );
     const modelData = await modelRes.json();
-    console.log('[3D Upload] Model upload response:', modelData);
     if (!modelData.success) { showToast(modelData.error || 'Upload failed', 'error'); return; }
 
     if (!currentQuote.models) currentQuote.models = {};
     currentQuote.models[type] = { file: modelData.filename, textures: [] };
 
-    // 2 — upload supporting / texture files if any
+    // 2 — upload supporting / texture files if any (retry once on network error)
     let textureFilenames = [];
     if (textureFiles.length) {
       const texFd = new FormData();
       for (const f of textureFiles) texFd.append('files', f);
-      const texRes  = await fetch(`/api/quotes/${quoteFilename}/upload/textures/${type}`, { method: 'POST', body: texFd });
+      const texRes  = await fetchWithRetry(
+        `/api/quotes/${quoteFilename}/upload/textures/${type}`,
+        { method: 'POST', body: texFd }
+      );
       const texData = await texRes.json();
-      console.log('[3D Upload] Texture upload response:', texData);
       if (texData.success) {
         textureFilenames = texData.filenames;
         currentQuote.models[type].textures = textureFilenames;
@@ -263,15 +278,14 @@ async function uploadAllFiles(input, type) {
     // 3 — show viewer
     const uploadDir   = quoteFilename.replace('.json','');
     const textureUrls = textureFilenames.map(t => `/uploads/${uploadDir}/models/${t}`);
-    console.log('[3D Upload] Calling showViewerPreview with modelUrl:', modelData.url);
     showViewerPreview(type, modelData.url, textureUrls, modelFiles[0].name);
     renderTextureList(type, textureFilenames);
 
     scheduleAutoSave();
     showToast('Uploaded');
   } catch(e) {
-    showToast('Upload error: ' + e.message, 'error');
-    console.error('[3D Upload] uploadAllFiles error:', e);
+    showToast('Upload failed — please try again.', 'error');
+    console.error('uploadAllFiles error:', e);
   }
   input.value = '';
 }
@@ -306,17 +320,12 @@ function objToCam(d) {
 }
 
 function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
-  console.log('[3D Viewer] showViewerPreview called:', { type, modelUrl, textureUrls, label });
-
   const wrap   = document.getElementById(`wrap-${type}`);
   const info   = document.getElementById(`info-${type}`);
   const el     = document.getElementById(`viewer-${type}`);
   const camKey = `ov_${quoteFilename.replace('.json','')}_${type}`;
 
-  if (!wrap || !el) {
-    console.error('[3D Viewer] Could not find DOM elements for type:', type);
-    return;
-  }
+  if (!wrap || !el) return;
 
   wrap.classList.add('visible');
   info.textContent = label || modelUrl.split('/').pop();
@@ -325,29 +334,22 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
   el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:0.85rem;">Loading 3D model…</div>';
 
   if (typeof OV === 'undefined') {
-    console.error('[3D Viewer] OV library is not loaded!');
-    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer library failed to load — check your internet connection and reload.</div>';
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer library failed to load — reload the page.</div>';
     return;
   }
 
   // Wait for the browser to lay out the container (display:none → display:block)
-  // then use requestAnimationFrame to ensure at least one render cycle has occurred
-  // before WebGL reads the element dimensions.
+  // then use requestAnimationFrame to ensure a render cycle has occurred before
+  // WebGL reads the element dimensions.
   setTimeout(() => {
     requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect();
-      console.log('[3D Viewer] Container dimensions at init:', { w: rect.width, h: rect.height, type });
-
       el.innerHTML = '';
       try {
         const allUrls = [modelUrl, ...textureUrls];
-        console.log('[3D Viewer] Loading URLs:', allUrls);
-
         const ev = new OV.EmbeddedViewer(el, {
           backgroundColor: new OV.RGBAColor(248, 249, 250, 255),
           defaultColor:    new OV.RGBColor(200, 200, 200),
           onModelLoaded: function() {
-            console.log('[3D Viewer] Model loaded successfully:', modelUrl);
             try {
               const v   = ev.GetViewer();
               const nav = v && v.navigation;
@@ -368,18 +370,15 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
               el.addEventListener('mouseup',  debounce);
               el.addEventListener('touchend', debounce);
               el.addEventListener('wheel',    debounce, { passive: true });
-            } catch(e) { console.error('[3D Viewer] Camera restore error:', e); }
+            } catch(e) {}
           },
           onModelError: function() {
-            console.error('[3D Viewer] Model failed to load:', modelUrl);
-            el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, upload any required texture / MTL files in the section below.</div>';
+            el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ Failed to load 3D model. If this is a .3ds or .obj file, make sure you include all texture/MTL files when uploading.</div>';
           }
         });
         ev.LoadModelFromUrlList(allUrls);
         viewerInstances[type] = ev;
-        console.log('[3D Viewer] EmbeddedViewer created and loading started');
       } catch (e) {
-        console.error('[3D Viewer] Init error:', e);
         el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:1rem;color:#c00;font-size:0.85rem;text-align:center;">⚠️ 3D viewer error: ' + e.message + '</div>';
       }
     });
