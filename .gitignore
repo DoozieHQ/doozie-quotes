@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Data directories — these live on the Railway volume, not in the repo
+quotes/
+uploads/
+published/
+settings.json
+
+# Local env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

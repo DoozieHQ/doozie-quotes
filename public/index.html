@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quote Tool</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .home-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+    .home-toolbar h1 { font-size: 1.4rem; font-weight: 700; color: var(--navy); }
+
+    .quotes-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .quotes-table th { text-align: left; padding: 0.75rem 1rem; border-bottom: 2px solid var(--border); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--navy); background: #fafafa; white-space: nowrap; }
+    .quotes-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .quotes-table tr:last-child td { border-bottom: none; }
+    .row-latest:hover td { background: #f8f9fa; }
+    .quote-ref  { font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
+    .quote-proj { color: #4a5568; }
+    .quote-total { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+    .quote-date { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+    .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* Ref cell layout */
+    .ref-cell { display: flex; align-items: center; gap: 0.4rem; }
+
+    /* Expand toggle button */
+    .expand-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      width: 1.4rem; height: 1.4rem; font-size: 0.6rem; color: var(--muted);
+      cursor: pointer; flex-shrink: 0; transition: background 0.12s, color 0.12s;
+    }
+    .expand-btn:hover { background: #eef2f7; color: var(--navy); }
+    .expand-btn.expanded { background: #eef2f7; color: var(--navy); }
+    .expand-spacer { display: inline-block; width: 1.4rem; flex-shrink: 0; }
+
+    /* Version chip */
+    .v-chip {
+      display: inline-block; font-size: 0.7rem; font-weight: 600;
+      padding: 0.1rem 0.4rem; border-radius: 3px;
+      background: #e8edf4; color: #4a5568;
+    }
+    .v-chip-draft    { background: #fef3c7; color: #92400e; }
+    .v-chip-published { background: #d1fae5; color: #065f46; }
+
+    /* Older version rows */
+    .row-older td { background: #fafbfc; padding-top: 0.5rem; padding-bottom: 0.5rem; font-size: 0.82rem; }
+    .row-older:last-child td { border-bottom: 1px solid var(--border); }
+    .row-older:hover td { background: #f3f5f8; }
+    .row-older .quote-ref { color: var(--muted); font-weight: 400; }
+    .row-older .ref-cell { padding-left: 0.75rem; }
+    .row-older .v-chip { font-size: 0.68rem; }
+    .row-older .badge { font-size: 0.7rem; padding: 0.15rem 0.45rem; }
+    .row-older .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.55rem; }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+    .empty-state p { margin-top: 0.5rem; font-size: 0.95rem; }
+
+    .confirm-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 500; align-items: center; justify-content: center;
+    }
+    .confirm-overlay.open { display: flex; }
+    .confirm-box { background: #fff; border-radius: 8px; padding: 1.5rem 2rem; max-width: 400px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    .confirm-box h3 { margin-bottom: 0.5rem; color: var(--navy); }
+    .confirm-box p { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+    .confirm-btns { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <span class="logo">Quote Tool</span>
+  <nav>
+    <a href="/" class="active">Quotes</a>
+    <a href="/settings.html">Settings</a>
+  </nav>
+</header>
+
+<div class="page">
+  <div class="home-toolbar">
+    <h1>All Quotes</h1>
+    <button class="btn btn-gold" onclick="newQuote()">+ New Quote</button>
+  </div>
+
+  <div id="quotes-container">
+    <div class="empty-state">
+      <strong>Loading…</strong>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h3 id="confirm-title">Are you sure?</h3>
+    <p id="confirm-msg"></p>
+    <div class="confirm-btns">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-gold" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/js/home.js"></script>
+</body>
+</html>

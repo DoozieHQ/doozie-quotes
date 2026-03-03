@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quote Builder</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://unpkg.com/online-3d-viewer@0.18.0/build/engine/o3dv.min.js"></script>
+  <style>
+    /* ── Builder layout ── */
+    .builder-header {
+      background: var(--navy); color: #fff; padding: 0 1.5rem;
+      height: 56px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .builder-header .left { display: flex; align-items: center; gap: 1rem; }
+    .back-link { color: rgba(255,255,255,0.7); font-size: 0.85rem; }
+    .back-link:hover { color: #fff; }
+    .quote-ref-label { font-weight: 700; font-size: 0.95rem; }
+    .builder-header .right { display: flex; align-items: center; gap: 0.75rem; }
+
+    .builder-body { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* ── Sections ── */
+    .builder-section { margin-bottom: 1.5rem; }
+
+    /* ── 3D Viewer ── */
+    .model-upload-area {
+      border: 2px dashed var(--border); border-radius: 6px;
+      padding: 1.5rem; text-align: center; cursor: pointer;
+      transition: border-color 0.15s; background: #fafafa;
+    }
+    .model-upload-area:hover { border-color: var(--navy); }
+    .model-upload-area input[type=file] { display: none; }
+    .model-upload-label { font-size: 0.85rem; color: var(--muted); }
+    .model-upload-label strong { color: var(--navy); }
+
+    .viewer-preview-wrap { margin-top: 0.75rem; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; display: none; }
+    .viewer-preview-wrap.visible { display: block; }
+    .viewer-preview-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: #fafafa; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+    .viewer-preview { width: 100%; height: 350px; }
+    .viewer-file-info { font-size: 0.8rem; color: var(--muted); }
+    .viewer-remove { font-size: 0.8rem; color: var(--danger); background: none; border: none; cursor: pointer; }
+    .viewer-remove:hover { text-decoration: underline; }
+
+    /* ── Texture files ── */
+    .texture-upload-area { margin-top: 0.75rem; }
+    .texture-upload-area .form-label { margin-bottom: 0.35rem; }
+    .texture-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; min-height: 0; }
+    .texture-file { display: flex; align-items: center; gap: 0.4rem; background: #f0f4f8; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem 0.2rem 0.65rem; font-size: 0.8rem; }
+    .texture-name { font-family: monospace; color: #4a5568; }
+
+    /* ── Materials ── */
+    .materials-library { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .lib-item {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.75rem; border: 1.5px solid var(--border); border-radius: 20px;
+      font-size: 0.82rem; cursor: pointer; background: #fff; transition: all 0.15s;
+    }
+    .lib-item:hover { border-color: var(--navy); background: #ebf4ff; }
+    .lib-item.selected { border-color: var(--navy); background: #ebf4ff; color: var(--navy); font-weight: 600; }
+    .lib-item img { width: 20px; height: 20px; object-fit: cover; border-radius: 3px; }
+    .lib-item-swatch { width: 20px; height: 20px; border-radius: 3px; background: #ddd; }
+
+    .selected-materials { display: flex; flex-direction: column; gap: 0.6rem; }
+    .selected-material-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; background: #fafafa;
+    }
+    .selected-material-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+    .mat-swatch-placeholder { width: 44px; height: 44px; border-radius: 4px; background: #e2e8f0; flex-shrink: 0; }
+    .mat-info { flex: 1; }
+    .mat-name { font-weight: 600; font-size: 0.85rem; }
+    .mat-desc-text { font-size: 0.82rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.4; }
+
+    /* ── Pricing ── */
+    .line-items-table { width: 100%; border-collapse: collapse; margin-bottom: 0.75rem; }
+    .line-items-table th { text-align: left; padding: 0.5rem 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--navy); border-bottom: 2px solid var(--border); }
+    .line-items-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .line-items-table input { border: 1px solid var(--border); border-radius: 4px; padding: 0.35rem 0.5rem; width: 100%; background: #fff; }
+    .line-items-table input:focus { outline: none; border-color: var(--navy); }
+    .li-desc { width: 70%; }
+    .li-price { width: 22%; }
+    .li-remove { width: 8%; text-align: center; }
+    .remove-row-btn { background: none; border: none; color: var(--danger); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+    .remove-row-btn:hover { opacity: 0.7; }
+
+    /* Section header rows inside the pricing table */
+    .li-section-row td { background: #eef2f8; border-bottom: 1px solid #d0dae6; }
+    .li-section-cell { padding: 0.3rem 0.5rem !important; }
+    .li-section-input {
+      border: none; background: transparent; width: 100%;
+      font-weight: 700; font-size: 0.82rem; color: var(--navy);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      outline: none; padding: 0.2rem 0;
+    }
+    .li-section-input::placeholder { color: #8a9bb0; font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+    .totals-panel { background: #fafafa; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; margin-top: 0.5rem; }
+    .totals-row { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.9rem; }
+    .totals-row.grand { font-weight: 700; font-size: 1rem; color: var(--navy); border-top: 2px solid var(--navy); margin-top: 0.25rem; padding-top: 0.5rem; }
+    .vat-toggle { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.9rem; }
+    .vat-toggle input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+
+    /* ── Template picker ── */
+    .template-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .template-bar label { font-size: 0.82rem; font-weight: 600; color: #4a5568; white-space: nowrap; }
+    .template-bar select { flex: 1; }
+
+    /* ── Publish modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 500;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff; border-radius: 10px; padding: 2rem;
+      max-width: 480px; width: 90%; box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+    }
+    .modal-box h2 { color: var(--navy); margin-bottom: 0.5rem; }
+    .modal-box p { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .modal-box .pub-folder { font-family: monospace; background: #f0f4f8; padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem; word-break: break-all; margin-bottom: 1rem; }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 0.5rem; }
+  </style>
+</head>
+<body>
+
+<!-- Builder header -->
+<header class="builder-header">
+  <div class="left">
+    <a href="/" class="back-link">← Quotes</a>
+    <span class="quote-ref-label" id="header-ref">Loading…</span>
+    <span class="badge" id="header-status"></span>
+  </div>
+  <div class="right">
+    <span class="save-status" id="save-status"></span>
+    <button class="btn btn-secondary btn-sm" onclick="saveQuote()">Save</button>
+    <button class="btn btn-gold btn-sm" onclick="confirmPublish()">Publish</button>
+  </div>
+</header>
+
+<div class="builder-body">
+
+  <!-- 1. Cover Details -->
+  <div class="builder-section card">
+    <div class="card-header">1 &mdash; Cover Details</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Customer Name</label>
+          <input class="form-control" id="f-customer-name" type="text" placeholder="John Smith">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project Title</label>
+          <input class="form-control" id="f-project-title" type="text" placeholder="Master Bedroom Wardrobes">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Customer Address</label>
+        <textarea class="form-control" id="f-customer-address" rows="3" placeholder="123 Main Street&#10;London, SW1A 1AA"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Customer Email</label>
+          <input class="form-control" id="f-customer-email" type="email" placeholder="john@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Customer Phone</label>
+          <input class="form-control" id="f-customer-phone" type="tel" placeholder="07700 900000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Valid Until</label>
+          <input class="form-control" id="f-valid-until" type="date">
+        </div>
+        <div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Project Overview -->
+  <div class="builder-section card">
+    <div class="card-header">2 &mdash; Project Overview</div>
+    <div class="card-body">
+      <div class="rich-editor-wrap">
+        <div class="rich-toolbar">
+          <button type="button" onclick="fmt('bold')"><b>B</b></button>
+          <button type="button" onclick="fmt('italic')"><i>I</i></button>
+          <button type="button" onclick="fmt('underline')"><u>U</u></button>
+          <button type="button" onclick="fmt('insertUnorderedList')">&#8226;</button>
+          <button type="button" onclick="fmt('insertOrderedList')">1.</button>
+        </div>
+        <div class="rich-editor" id="f-overview" contenteditable="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 3D Visualisations -->
+  <div class="builder-section card">
+    <div class="card-header">3 &mdash; 3D Visualisations</div>
+    <div class="card-body">
+
+      <!-- Closed view -->
+      <div class="form-group">
+        <label class="form-label">Closed View</label>
+        <div class="model-upload-area" onclick="document.getElementById('upload-closed').click()">
+          <input type="file" id="upload-closed" accept=".glb,.obj,.fbx,.stl,.3ds,.dae,.ply,.gltf" onchange="uploadModel(this,'closed')">
+          <div class="model-upload-label">
+            <strong>Click to upload</strong> — GLB, OBJ, FBX, STL and more
+          </div>
+        </div>
+        <div class="viewer-preview-wrap" id="wrap-closed">
+          <div class="viewer-preview-header">
+            <span class="viewer-file-info" id="info-closed"></span>
+            <button class="viewer-remove" onclick="removeModel('closed')">&#x2715; Remove</button>
+          </div>
+          <div class="viewer-preview" id="viewer-closed"></div>
+        </div>
+      </div>
+
+      <!-- Closed texture files -->
+      <div id="textures-closed" class="texture-upload-area" style="display:none">
+        <label class="form-label">
+          Texture &amp; Supporting Files
+          <span class="text-muted" style="font-weight:400">&nbsp;— required for .3ds, .obj and other multi-file formats</span>
+        </label>
+        <div class="model-upload-area" onclick="document.getElementById('upload-textures-closed').click()">
+          <input type="file" id="upload-textures-closed" multiple
+            accept=".jpg,.jpeg,.png,.bmp,.tga,.gif,.mtl,.mat"
+            onchange="uploadTextures(this,'closed')">
+          <div class="model-upload-label"><strong>Click to add</strong> — JPG, PNG, BMP, MTL and other supporting files (multiple allowed)</div>
+        </div>
+        <div id="texture-list-closed" class="texture-list"></div>
+      </div>
+
+      <!-- Open view -->
+      <div class="form-group mt-2">
+        <label class="form-label">Open View</label>
+        <div class="model-upload-area" onclick="document.getElementById('upload-open').click()">
+          <input type="file" id="upload-open" accept=".glb,.obj,.fbx,.stl,.3ds,.dae,.ply,.gltf" onchange="uploadModel(this,'open')">
+          <div class="model-upload-label">
+            <strong>Click to upload</strong> — GLB, OBJ, FBX, STL and more
+          </div>
+        </div>
+        <div class="viewer-preview-wrap" id="wrap-open">
+          <div class="viewer-preview-header">
+            <span class="viewer-file-info" id="info-open"></span>
+            <button class="viewer-remove" onclick="removeModel('open')">&#x2715; Remove</button>
+          </div>
+          <div class="viewer-preview" id="viewer-open"></div>
+        </div>
+      </div>
+
+      <!-- Open texture files -->
+      <div id="textures-open" class="texture-upload-area" style="display:none">
+        <label class="form-label">
+          Texture &amp; Supporting Files
+          <span class="text-muted" style="font-weight:400">&nbsp;— required for .3ds, .obj and other multi-file formats</span>
+        </label>
+        <div class="model-upload-area" onclick="document.getElementById('upload-textures-open').click()">
+          <input type="file" id="upload-textures-open" multiple
+            accept=".jpg,.jpeg,.png,.bmp,.tga,.gif,.mtl,.mat"
+            onchange="uploadTextures(this,'open')">
+          <div class="model-upload-label"><strong>Click to add</strong> — JPG, PNG, BMP, MTL and other supporting files (multiple allowed)</div>
+        </div>
+        <div id="texture-list-open" class="texture-list"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 5. Materials & Finishes -->
+  <div class="builder-section card">
+    <div class="card-header">
+      4 &mdash; Materials &amp; Finishes
+      <span class="text-muted" style="font-size:0.78rem;font-weight:400">Select from your library below</span>
+    </div>
+    <div class="card-body">
+      <div id="materials-library" class="materials-library">
+        <span class="text-muted" style="font-size:0.85rem">No materials in library yet — <a href="/settings.html">add them in Settings</a>.</span>
+      </div>
+      <div id="selected-materials" class="selected-materials"></div>
+    </div>
+  </div>
+
+  <!-- 6. Pricing -->
+  <div class="builder-section card">
+    <div class="card-header">5 &mdash; Pricing</div>
+    <div class="card-body">
+      <div class="template-bar">
+        <label>Add template:</label>
+        <select id="template-select" class="form-control" style="max-width:280px">
+          <option value="">— select a template —</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="loadTemplate()">Add to quote</button>
+        <button class="btn btn-secondary btn-sm" onclick="addSectionHeader()">+ Add section</button>
+      </div>
+
+      <div class="vat-toggle">
+        <input type="checkbox" id="f-vat-enabled" checked onchange="updateTotals()">
+        <label for="f-vat-enabled">Include VAT at</label>
+        <input type="number" id="f-vat-rate" value="20" min="0" max="100" style="width:60px" class="form-control" oninput="updateTotals()">
+        <span>%</span>
+      </div>
+
+      <table class="line-items-table">
+        <thead>
+          <tr>
+            <th class="li-desc">Description</th>
+            <th class="li-price">Price (£)</th>
+            <th class="li-remove"></th>
+          </tr>
+        </thead>
+        <tbody id="line-items-body"></tbody>
+      </table>
+      <button class="btn btn-secondary btn-sm" onclick="addLineItem()">+ Add Line</button>
+
+      <div class="totals-panel mt-2">
+        <div class="totals-row"><span>Net Total</span><span id="total-net">£0.00</span></div>
+        <div class="totals-row" id="vat-row"><span id="vat-label">VAT (20%)</span><span id="total-vat">£0.00</span></div>
+        <div class="totals-row grand"><span>Total</span><span id="total-grand">£0.00</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Further Information -->
+  <div class="builder-section card">
+    <div class="card-header">6 &mdash; Further Information</div>
+    <div class="card-body">
+
+      <div class="form-group">
+        <label class="form-label">Time Frame &amp; Next Steps</label>
+        <div class="rich-editor-wrap">
+          <div class="rich-toolbar">
+            <button type="button" onclick="fmt('bold')"><b>B</b></button>
+            <button type="button" onclick="fmt('italic')"><i>I</i></button>
+            <button type="button" onclick="fmt('insertUnorderedList')">&#8226;</button>
+            <button type="button" onclick="fmt('insertOrderedList')">1.</button>
+          </div>
+          <div class="rich-editor" id="f-next-steps" contenteditable="true"></div>
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label class="form-label">Manufacturing &amp; Delivery</label>
+        <div class="rich-editor-wrap">
+          <div class="rich-toolbar">
+            <button type="button" onclick="fmt('bold')"><b>B</b></button>
+            <button type="button" onclick="fmt('italic')"><i>I</i></button>
+            <button type="button" onclick="fmt('insertUnorderedList')">&#8226;</button>
+          </div>
+          <div class="rich-editor" id="f-scope" contenteditable="true"></div>
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label class="form-label">Payment Terms</label>
+        <div class="rich-editor-wrap">
+          <div class="rich-toolbar">
+            <button type="button" onclick="fmt('bold')"><b>B</b></button>
+            <button type="button" onclick="fmt('italic')"><i>I</i></button>
+            <button type="button" onclick="fmt('underline')"><u>U</u></button>
+          </div>
+          <div class="rich-editor" id="f-payment-terms" contenteditable="true"></div>
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label class="form-label">Terms &amp; Conditions</label>
+        <div class="rich-editor-wrap">
+          <div class="rich-toolbar">
+            <button type="button" onclick="fmt('bold')"><b>B</b></button>
+            <button type="button" onclick="fmt('italic')"><i>I</i></button>
+            <button type="button" onclick="fmt('underline')"><u>U</u></button>
+            <button type="button" onclick="fmt('insertUnorderedList')">&#8226;</button>
+            <button type="button" onclick="fmt('insertOrderedList')">1.</button>
+          </div>
+          <div class="rich-editor" id="f-terms" contenteditable="true"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /builder-body -->
+
+<!-- Publish modal -->
+<div class="modal-overlay" id="publish-modal">
+  <div class="modal-box">
+    <h2>Publish Quote</h2>
+    <p>This will lock the quote and generate a folder ready to upload to Netlify. The quote will become read-only — create a new version to make further changes.</p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="publishQuote()">Publish</button>
+    </div>
+  </div>
+</div>
+
+<!-- Published success modal -->
+<div class="modal-overlay" id="success-modal">
+  <div class="modal-box">
+    <h2>&#10003; Published!</h2>
+
+    <!-- Netlify URL (shown when auto-deployed) -->
+    <div id="netlify-result" style="display:none;margin-bottom:1.25rem">
+      <p style="margin-bottom:0.5rem">Your quote is live at:</p>
+      <a id="netlify-url-link" href="#" target="_blank"
+         style="display:block;background:#f0f4f8;padding:0.6rem 0.85rem;border-radius:4px;
+                font-family:monospace;font-size:0.9rem;word-break:break-all;
+                color:var(--navy);text-decoration:none;border:1px solid #d0dae6">
+      </a>
+      <button class="btn btn-sm btn-gold" style="margin-top:0.6rem"
+              onclick="copyNetlifyUrl()">Copy link</button>
+    </div>
+
+    <!-- Manual Netlify Drop instructions (shown when no token configured) -->
+    <div id="manual-result">
+      <p style="margin-bottom:0.5rem">No Netlify token configured — upload manually:</p>
+      <ol style="font-size:0.9rem;color:#4a5568;padding-left:1.25rem;line-height:2;margin-bottom:0.75rem">
+        <li>Go to <strong>netlify.com/drop</strong> in your browser</li>
+        <li>Drag and drop the folder below</li>
+        <li>Copy the link Netlify gives you and send it to your customer</li>
+      </ol>
+      <div class="pub-folder" id="pub-folder-path"></div>
+    </div>
+
+    <div id="netlify-error-msg" style="display:none;color:#c53030;font-size:0.85rem;margin-bottom:0.75rem"></div>
+
+    <div class="modal-btns" style="margin-top:1rem">
+      <button class="btn btn-secondary" onclick="window.location.href='/'">Back to Quotes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/js/builder.js"></script>
+</body>
+</html>

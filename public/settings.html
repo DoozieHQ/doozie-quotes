@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — Quote Tool</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .settings-grid { display: grid; gap: 1.5rem; }
+
+    /* Logo */
+    .logo-row { display: flex; align-items: center; gap: 1rem; }
+    .logo-preview { width: 120px; height: 60px; object-fit: contain; border: 1px solid var(--border); border-radius: 4px; background: #f9f9f9; display: none; }
+    .logo-preview.visible { display: block; }
+    .logo-placeholder { width: 120px; height: 60px; border: 2px dashed var(--border); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--muted); text-align: center; cursor: pointer; }
+
+    /* Materials library */
+    .mat-grid { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+    .mat-card {
+      width: 160px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .mat-img-wrap { height: 80px; background: #f0f0f0; position: relative; overflow: hidden; cursor: pointer; }
+    .mat-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .mat-img-upload { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.35); color: #fff; font-size: 0.75rem; opacity: 0; transition: opacity 0.15s; }
+    .mat-img-wrap:hover .mat-img-upload { opacity: 1; }
+    .mat-img-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 0.75rem; }
+    .mat-body { padding: 0.5rem; }
+    .mat-name-input { width: 100%; font-weight: 600; font-size: 0.82rem; border: none; outline: none; background: transparent; margin-bottom: 0.2rem; }
+    .mat-desc-input { width: 100%; font-size: 0.75rem; border: none; outline: none; background: transparent; color: var(--muted); resize: none; }
+    .mat-footer { display: flex; justify-content: flex-end; padding: 0.3rem 0.5rem; border-top: 1px solid var(--border); }
+    .mat-file-input { display: none; }
+
+    /* Templates */
+    .tpl-item { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
+    .tpl-header { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; background: #fafafa; border-bottom: 1px solid var(--border); }
+    .tpl-name-input { font-weight: 600; font-size: 0.9rem; border: none; outline: none; background: transparent; flex: 1; }
+    .tpl-body { padding: 0.75rem; }
+    .tpl-items { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.5rem; }
+    .tpl-item-row { display: flex; gap: 0.5rem; align-items: center; }
+    .tpl-item-desc { flex: 1; }
+    .tpl-item-price { width: 100px; }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <span class="logo">Quote Tool</span>
+  <nav>
+    <a href="/">Quotes</a>
+    <a href="/settings.html" class="active">Settings</a>
+  </nav>
+</header>
+
+<div class="page">
+  <div class="flex-between" style="margin-bottom:1.5rem">
+    <h1 style="font-size:1.4rem;font-weight:700;color:var(--navy)">Settings</h1>
+    <button class="btn btn-gold" onclick="saveSettings()">Save All</button>
+  </div>
+
+  <div class="settings-grid">
+
+    <!-- Company Details -->
+    <div class="card">
+      <div class="card-header">Company Details</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Company Name</label>
+          <input class="form-control" id="s-company-name" type="text" placeholder="Your Company Name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Company Logo</label>
+          <div class="logo-row">
+            <div class="logo-placeholder" id="logo-placeholder" onclick="document.getElementById('logo-file').click()">
+              Click to upload logo
+            </div>
+            <img class="logo-preview" id="logo-preview" src="" alt="Logo">
+            <input type="file" id="logo-file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default VAT Rate (%)</label>
+          <input class="form-control" id="s-vat-rate" type="number" min="0" max="100" value="20" style="max-width:100px">
+        </div>
+      </div>
+    </div>
+
+    <!-- Netlify Integration -->
+    <div class="card">
+      <div class="card-header">Netlify Integration</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Personal Access Token</label>
+          <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem">
+            Generate a token at <a href="https://app.netlify.com/user/applications" target="_blank" style="color:var(--gold)">app.netlify.com → User → Applications → Personal access tokens</a>.
+            Once set, quotes are deployed to Netlify automatically on publish.
+          </p>
+          <input class="form-control" id="s-netlify-token" type="password" placeholder="Paste your Netlify personal access token" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <!-- Default Text -->
+    <div class="card">
+      <div class="card-header">Default Text</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Project Overview</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar">
+              <button type="button" onclick="document.execCommand('bold')"><b>B</b></button>
+              <button type="button" onclick="document.execCommand('italic')"><i>I</i></button>
+              <button type="button" onclick="document.execCommand('insertUnorderedList')">&#8226;</button>
+            </div>
+            <div class="rich-editor" id="s-default-overview" contenteditable="true" style="min-height:120px"></div>
+          </div>
+        </div>
+        <div class="form-group mt-2">
+          <label class="form-label">Time Frame &amp; Next Steps</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar">
+              <button type="button" onclick="document.execCommand('bold')"><b>B</b></button>
+              <button type="button" onclick="document.execCommand('italic')"><i>I</i></button>
+            </div>
+            <div class="rich-editor" id="s-default-nextsteps" contenteditable="true"></div>
+          </div>
+        </div>
+        <div class="form-group mt-2">
+          <label class="form-label">Manufacturing &amp; Delivery</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar">
+              <button type="button" onclick="document.execCommand('bold')"><b>B</b></button>
+              <button type="button" onclick="document.execCommand('insertUnorderedList')">&#8226;</button>
+            </div>
+            <div class="rich-editor" id="s-default-scope" contenteditable="true"></div>
+          </div>
+        </div>
+        <div class="form-group mt-2">
+          <label class="form-label">Payment Terms</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar">
+              <button type="button" onclick="document.execCommand('bold')"><b>B</b></button>
+              <button type="button" onclick="document.execCommand('italic')"><i>I</i></button>
+            </div>
+            <div class="rich-editor" id="s-default-payment" contenteditable="true"></div>
+          </div>
+        </div>
+        <div class="form-group mt-2">
+          <label class="form-label">Terms &amp; Conditions</label>
+          <div class="rich-editor-wrap">
+            <div class="rich-toolbar">
+              <button type="button" onclick="document.execCommand('bold')"><b>B</b></button>
+              <button type="button" onclick="document.execCommand('italic')"><i>I</i></button>
+              <button type="button" onclick="document.execCommand('insertUnorderedList')">&#8226;</button>
+            </div>
+            <div class="rich-editor" id="s-default-terms" contenteditable="true" style="min-height:120px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Materials Library -->
+    <div class="card">
+      <div class="card-header">
+        Materials Library
+        <button class="btn btn-secondary btn-sm" onclick="addMaterial()">+ Add Material</button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          Add your standard finishes and handles here. They will be available to select in every quote.
+        </p>
+        <div id="mat-grid" class="mat-grid">
+          <span class="text-muted" style="font-size:0.85rem">No materials yet.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line Item Templates -->
+    <div class="card">
+      <div class="card-header">
+        Line Item Templates
+        <button class="btn btn-secondary btn-sm" onclick="addTemplate()">+ Add Template</button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          Save common sets of line items to quickly populate the pricing section of a new quote.
+        </p>
+        <div id="tpl-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/js/settings.js"></script>
+</body>
+</html>
