@@ -59,17 +59,22 @@
 
     /* Mobile: info shown inside ref cell instead of separate columns */
     .mobile-sub { display: none; font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; font-weight: 400; }
+    .btn-label-short { display: none; }
 
     @media (max-width: 640px) {
-      /* Hide Customer, Project, Status, Date columns */
+      /* Hide Customer, Project, Status, Date, Total columns */
       .quotes-table th:nth-child(2), .quotes-table td:nth-child(2),
       .quotes-table th:nth-child(3), .quotes-table td:nth-child(3),
       .quotes-table th:nth-child(4), .quotes-table td:nth-child(4),
-      .quotes-table th:nth-child(5), .quotes-table td:nth-child(5) { display: none; }
+      .quotes-table th:nth-child(5), .quotes-table td:nth-child(5),
+      .quotes-table th:nth-child(6), .quotes-table td:nth-child(6) { display: none; }
       /* Show compact subtitle in ref cell */
       .mobile-sub { display: block; }
       /* Hide secondary action buttons */
       .btn-mobile-hide { display: none; }
+      /* Shorter button labels */
+      .btn-label-full  { display: none; }
+      .btn-label-short { display: inline; }
       /* Tighten cell padding */
       .quotes-table td, .quotes-table th { padding: 0.65rem 0.6rem; }
       .home-toolbar { align-items: center; }

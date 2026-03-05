@@ -10,7 +10,7 @@ function fmtDate(d) {
 function actionBtns(q, isLatest) {
   const view = q.status === 'draft'
     ? `<a href="/builder.html?id=${q.filename}" class="btn btn-sm btn-primary">Edit</a>`
-    : `<a href="${q.quoteUrl || `/published/${q.id}-v${q.version}/`}" class="btn btn-sm btn-gold" target="_blank">&#127758; View Quote</a>`;
+    : `<a href="${q.quoteUrl || `/published/${q.id}-v${q.version}/`}" class="btn btn-sm btn-gold" target="_blank"><span class="btn-label-full">&#127758; View Quote</span><span class="btn-label-short">View</span></a>`;
 
   const mgmt = isLatest
     ? `<button class="btn btn-sm btn-secondary btn-mobile-hide" onclick="newVersion('${q.filename}')">New Version</button>
@@ -37,7 +37,7 @@ function renderLatestRow(q, olderCount, gid) {
           ${expandBtn}
           <div>
             <div><span>${q.id}</span> <span class="v-chip v-chip-${q.status}">v${q.version}</span></div>
-            <span class="mobile-sub">${[q.customerName, q.projectTitle].filter(Boolean).join(' · ') || ''}</span>
+            <span class="mobile-sub">${[q.total ? fmt(q.total) : null, q.customerName, q.projectTitle].filter(Boolean).join(' · ') || ''}</span>
           </div>
         </div>
       </td>
@@ -58,7 +58,7 @@ function renderOlderRow(q, gid) {
           <span class="expand-spacer"></span>
           <div>
             <div><span>${q.id}</span> <span class="v-chip v-chip-${q.status}">v${q.version}</span></div>
-            <span class="mobile-sub">${[q.customerName, q.projectTitle].filter(Boolean).join(' · ') || ''}</span>
+            <span class="mobile-sub">${[q.total ? fmt(q.total) : null, q.customerName, q.projectTitle].filter(Boolean).join(' · ') || ''}</span>
           </div>
         </div>
       </td>

@@ -1040,6 +1040,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
       d.fov
     );
   }
+  const _viewers = {};
   function initViewer(el, urls, camKey) {
     if (typeof OV === 'undefined') return;
     const ev = new OV.EmbeddedViewer(el, {
@@ -1070,6 +1071,13 @@ function buildPublishedHTML(quote, settings, baseUrl) {
       }
     });
     ev.LoadModelFromUrlList(urls);
+    _viewers[el.id] = ev;
+  }
+  function _resizeViewer(el) {
+    requestAnimationFrame(() => {
+      try { const ev = _viewers[el.id]; if (ev && ev.Resize) ev.Resize(); } catch(e) {}
+      window.dispatchEvent(new Event('resize'));
+    });
   }
   window.addEventListener('load', () => {
     ${closedUrls ? `
@@ -1094,6 +1102,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
   function cssFallbackFullscreen(el) {
     if (el.classList.contains('viewer-fs-fallback')) return;
     el.classList.add('viewer-fs-fallback');
+    _resizeViewer(el);
     const btn = document.createElement('button');
     btn.className = 'fs-exit-btn';
     btn.textContent = '✕ Exit Fullscreen';
@@ -1103,6 +1112,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
       el.classList.remove('viewer-fs-fallback');
       btn.remove();
       document.removeEventListener('keydown', onKey);
+      _resizeViewer(el);
     }
     function onKey(e) { if (e.key === 'Escape') exitFallback(); }
     document.addEventListener('keydown', onKey);
