@@ -75,6 +75,10 @@
       /* Shorter button labels */
       .btn-label-full  { display: none; }
       .btn-label-short { display: inline; }
+      /* Fixed table layout: Actions column gets a fixed width, Ref takes the rest */
+      .quotes-table { table-layout: fixed; }
+      .quotes-table th:last-child, .quotes-table td:last-child { width: 72px; }
+      .quotes-table td:first-child { overflow: hidden; }
       /* Tighten cell padding */
       .quotes-table td, .quotes-table th { padding: 0.65rem 0.6rem; }
       .home-toolbar { align-items: center; }

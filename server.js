@@ -1072,12 +1072,20 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     });
     ev.LoadModelFromUrlList(urls);
     _viewers[el.id] = ev;
+    // Resize canvas whenever the container element changes size (e.g. entering/exiting fullscreen)
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => {
+        try { ev.Resize(); } catch(e) {}
+        window.dispatchEvent(new Event('resize'));
+      }).observe(el);
+    }
   }
   function _resizeViewer(el) {
-    requestAnimationFrame(() => {
+    // Belt-and-braces explicit resize in addition to ResizeObserver
+    setTimeout(() => {
       try { const ev = _viewers[el.id]; if (ev && ev.Resize) ev.Resize(); } catch(e) {}
       window.dispatchEvent(new Event('resize'));
-    });
+    }, 50);
   }
   window.addEventListener('load', () => {
     ${closedUrls ? `
