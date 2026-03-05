@@ -116,7 +116,11 @@ async function kommoFetch(method, endpoint, body) {
       headers: { 'Authorization': `Bearer ${KOMMO_TOKEN}`, 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {})
     });
-    if (!resp.ok) { console.error(`Kommo ${method} ${endpoint} → ${resp.status}`); return null; }
+    if (!resp.ok) {
+      const errBody = await resp.text().catch(() => '');
+      console.error(`Kommo ${method} ${endpoint} → ${resp.status}: ${errBody}`);
+      return null;
+    }
     const text = await resp.text();
     return text ? JSON.parse(text) : null;
   } catch (e) { console.error('Kommo fetch error:', e.message); return null; }
@@ -129,13 +133,13 @@ async function kommoAddNote(leadId, text) {
 async function kommoSetQuoteUrl(leadId, quoteUrl) {
   if (!KOMMO_URL_FIELD) return;
   return kommoFetch('PATCH', 'leads', [{
-    id: leadId,
+    id: parseInt(leadId),
     custom_fields_values: [{ field_id: parseInt(KOMMO_URL_FIELD), values: [{ value: quoteUrl }] }]
   }]);
 }
 
 async function kommoSetSale(leadId, amount) {
-  return kommoFetch('PATCH', 'leads', [{ id: leadId, sale: Math.round(amount || 0) }]);
+  return kommoFetch('PATCH', 'leads', [{ id: parseInt(leadId), sale: Math.round(amount || 0) }]);
 }
 
 // ─── Quotes API ───────────────────────────────────────────────────────────────
@@ -267,7 +271,7 @@ app.post('/api/quotes/:id/publish', (req, res) => {
     // Notify Kommo if this quote is linked to a lead
     if (quote.kommoLeadId) {
       const saleAmount = quote.total || 0;
-      const noteText = `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}\n💰 Sale price updated to ${saleAmount.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })}`;
+      const noteText = `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}\n💰 Sale price updated to ${saleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       kommoSetQuoteUrl(quote.kommoLeadId, quoteUrl).catch(e => console.error('Kommo field error:', e.message));
       kommoSetSale(quote.kommoLeadId, saleAmount).catch(e => console.error('Kommo sale error:', e.message));
       kommoAddNote(quote.kommoLeadId, noteText).catch(e => console.error('Kommo note error:', e.message));
