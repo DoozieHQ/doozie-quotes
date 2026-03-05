@@ -271,6 +271,7 @@ app.post('/api/quotes/:id/publish', (req, res) => {
     fs.writeFileSync(fp, JSON.stringify(quote, null, 2));
 
     // Notify Kommo if this quote is linked to a lead
+    console.log(`Publish ${pubId}: kommoLeadId=${quote.kommoLeadId || 'none'} total=${quote.total}`);
     if (quote.kommoLeadId) {
       const saleAmount = quote.total || 0;
       const noteText = `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}\n💰 Sale price updated to ${saleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
