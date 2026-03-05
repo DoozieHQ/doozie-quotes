@@ -140,7 +140,11 @@ async function kommoSetQuoteUrl(leadId, quoteUrl) {
 }
 
 async function kommoSetSale(leadId, amount) {
-  return kommoFetch('PATCH', 'leads', [{ id: parseInt(leadId), sale: Math.round(amount || 0) }]);
+  const saleValue = Math.round(amount || 0);
+  console.log(`Kommo setSale: leadId=${leadId} amount=${amount} sending sale=${saleValue}`);
+  const result = await kommoFetch('PATCH', 'leads', [{ id: parseInt(leadId), sale: saleValue }]);
+  console.log(`Kommo setSale result:`, JSON.stringify(result));
+  return result;
 }
 
 // ─── Quotes API ───────────────────────────────────────────────────────────────
