@@ -132,12 +132,16 @@ async function kommoAddNote(leadId, text) {
 }
 
 async function kommoUpdateLead(leadId, quoteUrl, saleAmount) {
-  const patch = { id: parseInt(leadId), sale: Math.round(saleAmount || 0) };
+  const id = parseInt(leadId);
+  const patch = { price: Math.round(saleAmount || 0) };
   if (KOMMO_URL_FIELD)
     patch.custom_fields_values = [{ field_id: parseInt(KOMMO_URL_FIELD), values: [{ value: quoteUrl }] }];
-  console.log(`Kommo updateLead: leadId=${leadId} sale=${patch.sale}`);
-  const result = await kommoFetch('PATCH', 'leads', [patch]);
-  console.log(`Kommo updateLead result:`, JSON.stringify(result?._embedded?.leads?.[0]));
+  console.log(`Kommo updateLead: leadId=${id} price=${patch.price}`);
+  const result = await kommoFetch('PATCH', `leads/${id}`, patch);
+  console.log(`Kommo updateLead result:`, JSON.stringify(result));
+  // Verify what Kommo actually stored
+  const verify = await kommoFetch('GET', `leads/${id}`);
+  console.log(`Kommo verify price: leadId=${id} price=${verify?.price}`);
   return result;
 }
 
@@ -246,7 +250,7 @@ app.post('/api/quotes/:id/version', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/quotes/:id/publish', (req, res) => {
+app.post('/api/quotes/:id/publish', async (req, res) => {
   const fp = path.join(DATA_DIR, 'quotes', req.params.id);
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
   try {
@@ -275,8 +279,12 @@ app.post('/api/quotes/:id/publish', (req, res) => {
     if (quote.kommoLeadId) {
       const saleAmount = quote.total || 0;
       const noteText = `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}\n💰 Sale price updated to ${saleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      kommoUpdateLead(quote.kommoLeadId, quoteUrl, saleAmount).catch(e => console.error('Kommo update error:', e.message));
-      kommoAddNote(quote.kommoLeadId, noteText).catch(e => console.error('Kommo note error:', e.message));
+      const [updateResult, noteResult] = await Promise.allSettled([
+        kommoUpdateLead(quote.kommoLeadId, quoteUrl, saleAmount),
+        kommoAddNote(quote.kommoLeadId, noteText)
+      ]);
+      if (updateResult.status === 'rejected') console.error('Kommo update error:', updateResult.reason?.message);
+      if (noteResult.status === 'rejected') console.error('Kommo note error:', noteResult.reason?.message);
     }
 
     res.json({ success: true, pubId, quoteUrl });
