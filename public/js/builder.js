@@ -684,7 +684,9 @@ function escAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&l
 function showToast(msg, type = '') {
   const el = document.getElementById('toast');
   el.textContent = msg; el.className = `toast show ${type}`;
-  setTimeout(() => { el.className = 'toast'; }, 3000);
+  const duration = type === 'error' ? 8000 : 3000;
+  clearTimeout(el._toastTimer);
+  el._toastTimer = setTimeout(() => { el.className = 'toast'; }, duration);
 }
 
 // Warn on unsaved changes
