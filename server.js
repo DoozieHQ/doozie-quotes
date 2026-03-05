@@ -926,8 +926,10 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     .viewer-box:-webkit-full-screen { width: 100vw; height: 100vh; }
     .viewer-box:-moz-full-screen    { width: 100vw; height: 100vh; }
     .viewer-box:fullscreen          { width: 100vw; height: 100vh; }
-    /* iOS fallback fullscreen */
-    .viewer-box.viewer-fs-fallback  { position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 9000; border-radius: 0; }
+    /* iOS fallback fullscreen — applied to viewer-wrap (not viewer-box) to avoid
+       iOS Safari bug where overflow:hidden+border-radius clips fixed children */
+    .viewer-wrap.viewer-fs-fallback { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9000; border-radius: 0; }
+    .viewer-wrap.viewer-fs-fallback .viewer-box { height: 100% !important; }
     .fs-exit-btn { position: absolute; top: 12px; right: 12px; z-index: 9001; background: rgba(0,0,0,0.65); color: #fff; border: none; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit; }
 
     /* ── Swatch grid ── */
@@ -1108,16 +1110,19 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     }
   }
   function cssFallbackFullscreen(el) {
-    if (el.classList.contains('viewer-fs-fallback')) return;
-    el.classList.add('viewer-fs-fallback');
+    // Apply to viewer-wrap (parent) not viewer-box — avoids iOS Safari bug
+    // where overflow:hidden + border-radius clips position:fixed children
+    const wrap = el.closest('.viewer-wrap') || el;
+    if (wrap.classList.contains('viewer-fs-fallback')) return;
+    wrap.classList.add('viewer-fs-fallback');
     _resizeViewer(el);
     const btn = document.createElement('button');
     btn.className = 'fs-exit-btn';
     btn.textContent = '✕ Exit Fullscreen';
     btn.onclick = exitFallback;
-    el.appendChild(btn);
+    wrap.appendChild(btn);
     function exitFallback() {
-      el.classList.remove('viewer-fs-fallback');
+      wrap.classList.remove('viewer-fs-fallback');
       btn.remove();
       document.removeEventListener('keydown', onKey);
       _resizeViewer(el);
