@@ -619,13 +619,13 @@ function updateTotals() {
   const items      = collectLineItems();
   const vatEnabled = document.getElementById('f-vat-enabled').checked;
   const vatRate    = parseFloat(document.getElementById('f-vat-rate').value) || 20;
-  const net        = items.reduce((s, i) => s + i.price, 0);
+  const net        = items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
   const vat        = vatEnabled ? net * (vatRate / 100) : 0;
   const grand      = net + vat;
 
-  document.getElementById('total-net').textContent   = fmt(net);
-  document.getElementById('total-vat').textContent   = fmt(vat);
-  document.getElementById('total-grand').textContent = fmt(grand);
+  document.getElementById('total-net').textContent   = fmtCurrency(net);
+  document.getElementById('total-vat').textContent   = fmtCurrency(vat);
+  document.getElementById('total-grand').textContent = fmtCurrency(grand);
   document.getElementById('vat-label').textContent   = `VAT (${vatRate}%)`;
   document.getElementById('vat-row').style.display   = vatEnabled ? '' : 'none';
 }
@@ -692,23 +692,6 @@ function fmtCurrency(n) {
   return '£' + parseFloat(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Fix: updateTotals uses fmtCurrency
-(function fixTotals() {
-  const orig = updateTotals;
-  updateTotals = function() {
-    const items      = collectLineItems();
-    const vatEnabled = document.getElementById('f-vat-enabled').checked;
-    const vatRate    = parseFloat(document.getElementById('f-vat-rate').value) || 20;
-    const net        = items.reduce((s, i) => s + i.price, 0);
-    const vat        = vatEnabled ? net * (vatRate / 100) : 0;
-    const grand      = net + vat;
-    document.getElementById('total-net').textContent   = fmtCurrency(net);
-    document.getElementById('total-vat').textContent   = fmtCurrency(vat);
-    document.getElementById('total-grand').textContent = fmtCurrency(grand);
-    document.getElementById('vat-label').textContent   = `VAT (${vatRate}%)`;
-    document.getElementById('vat-row').style.display   = vatEnabled ? '' : 'none';
-  };
-})();
 
 function escAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
