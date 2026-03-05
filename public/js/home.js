@@ -140,7 +140,7 @@ async function newQuote() {
   const res = await fetch('/api/quotes', { method: 'POST' });
   const data = await res.json();
   if (data.filename) window.location.href = `/builder.html?id=${data.filename}`;
-  else showToast('Failed to create quote', 'error');
+  else showToast(data.error || 'Failed to create quote', 'error');
 }
 
 async function newVersion(filename) {

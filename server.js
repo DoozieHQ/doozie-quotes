@@ -180,7 +180,10 @@ app.post('/api/quotes', (req, res) => {
     ensureDir(path.join(uploadBase, 'models'));
     ensureDir(path.join(uploadBase, 'images'));
     res.json({ quote, filename });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    if (e.code === 'ENOSPC') return res.status(507).json({ error: 'Server storage is full — please contact support to increase the volume size.' });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/api/quotes/:id', (req, res) => {
