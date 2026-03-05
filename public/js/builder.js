@@ -323,7 +323,7 @@ function showViewerPreview(type, modelUrl, textureUrls = [], label = '') {
   const wrap   = document.getElementById(`wrap-${type}`);
   const info   = document.getElementById(`info-${type}`);
   const el     = document.getElementById(`viewer-${type}`);
-  const camKey = `ov_${quoteFilename.replace('.json','')}_${type}`;
+  const camKey = `ov_${currentQuote.id}_v${currentQuote.version}_${type}`;
 
   if (!wrap || !el) return;
 

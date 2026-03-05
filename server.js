@@ -250,36 +250,7 @@ app.post('/api/quotes/:id/publish', (req, res) => {
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
     const quoteUrl = `${baseUrl}/published/${pubId}/`;
 
-    ensureDir(path.join(pubDir, 'models'));
-    ensureDir(path.join(pubDir, 'images'));
-
-    // Copy model files
-    const modSrc = path.join(DATA_DIR, 'uploads', pubId, 'models');
-    if (fs.existsSync(modSrc))
-      fs.readdirSync(modSrc).forEach(f =>
-        fs.copyFileSync(path.join(modSrc, f), path.join(pubDir, 'models', f)));
-
-    // Copy quote images
-    const imgSrc = path.join(DATA_DIR, 'uploads', pubId, 'images');
-    if (fs.existsSync(imgSrc))
-      fs.readdirSync(imgSrc).forEach(f =>
-        fs.copyFileSync(path.join(imgSrc, f), path.join(pubDir, 'images', f)));
-
-    // Copy material library images used in this quote
-    (quote.materials || []).forEach(m => {
-      if (m.imageFile) {
-        const src = path.join(DATA_DIR, 'uploads', 'settings', 'materials', m.imageFile);
-        if (fs.existsSync(src))
-          fs.copyFileSync(src, path.join(pubDir, 'images', m.imageFile));
-      }
-    });
-
-    // Copy company logo
-    if (settings.companyLogo) {
-      const logoSrc = path.join(DATA_DIR, 'uploads', 'settings', settings.companyLogo);
-      if (fs.existsSync(logoSrc))
-        fs.copyFileSync(logoSrc, path.join(pubDir, settings.companyLogo));
-    }
+    ensureDir(pubDir);
 
     // Generate and write HTML
     const html = buildPublishedHTML(quote, settings, baseUrl);
@@ -297,6 +268,34 @@ app.post('/api/quotes/:id/publish', (req, res) => {
 
     res.json({ success: true, pubId, quoteUrl });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Cleanup: remove duplicate model/image files from published directories ───
+app.post('/api/admin/cleanup-published', (req, res) => {
+  const pubRoot = path.join(DATA_DIR, 'published');
+  if (!fs.existsSync(pubRoot)) return res.json({ removed: [], freedBytes: 0 });
+  let freed = 0;
+  const removed = [];
+  fs.readdirSync(pubRoot).forEach(pubId => {
+    const pubDir = path.join(pubRoot, pubId);
+    if (!fs.statSync(pubDir).isDirectory()) return;
+    ['models', 'images'].forEach(sub => {
+      const subDir = path.join(pubDir, sub);
+      if (!fs.existsSync(subDir)) return;
+      fs.readdirSync(subDir).forEach(f => {
+        const fp = path.join(subDir, f);
+        try { freed += fs.statSync(fp).size; fs.unlinkSync(fp); removed.push(`${pubId}/${sub}/${f}`); } catch {}
+      });
+      try { fs.rmdirSync(subDir); } catch {}
+    });
+    // Remove copied logo files (non-directory files that aren't index.html)
+    fs.readdirSync(pubDir).forEach(f => {
+      const fp = path.join(pubDir, f);
+      if (f === 'index.html' || fs.statSync(fp).isDirectory()) return;
+      try { freed += fs.statSync(fp).size; fs.unlinkSync(fp); removed.push(`${pubId}/${f}`); } catch {}
+    });
+  });
+  res.json({ removed, freedBytes: freed, freedMB: (freed / 1024 / 1024).toFixed(1) });
 });
 
 // ─── File Uploads ─────────────────────────────────────────────────────────────
@@ -635,7 +634,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
   const pubId    = `${quote.id}-v${quote.version}`;
   const trackUrl = `${baseUrl}/api/track/${pubId}`;
   const logoHTML = settings.companyLogo
-    ? `<img src="./${settings.companyLogo}" alt="${settings.companyName}" class="company-logo">`
+    ? `<img src="${baseUrl}/uploads/settings/${settings.companyLogo}" alt="${settings.companyName}" class="company-logo">`
     : `<div class="company-name-text">${settings.companyName || ''}</div>`;
 
   // Helper: extract all URLs for a model (main file + textures)
@@ -647,8 +646,8 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     return [file, ...textures].map(f => `${prefix}${f}`);
   }
 
-  const closedUrls = modelUrls(quote.models?.closed, './models/');
-  const openUrls   = modelUrls(quote.models?.open,   './models/');
+  const closedUrls = modelUrls(quote.models?.closed, `${baseUrl}/uploads/${pubId}/models/`);
+  const openUrls   = modelUrls(quote.models?.open,   `${baseUrl}/uploads/${pubId}/models/`);
 
   const closedHTML = closedUrls
     ? `<div class="viewer-wrap">
@@ -669,9 +668,9 @@ function buildPublishedHTML(quote, settings, baseUrl) {
       </div>` : '';
 
   const materialsHTML = (quote.materials || []).map(m => `
-    <div class="swatch-card ${m.imageFile ? 'has-image' : ''}"${m.imageFile ? ` onclick="openLightbox('./images/${m.imageFile}','${m.name.replace(/'/g,"\\'")}','${(m.description||'').replace(/'/g,"\\'")}')"`  : ''}>
+    <div class="swatch-card ${m.imageFile ? 'has-image' : ''}"${m.imageFile ? ` onclick="openLightbox('${baseUrl}/uploads/settings/materials/${m.imageFile}','${m.name.replace(/'/g,"\\'")}','${(m.description||'').replace(/'/g,"\\'")}')"`  : ''}>
       ${m.imageFile
-        ? `<div class="swatch-img-wrap"><img src="./images/${m.imageFile}" alt="${m.name}" loading="lazy"></div>`
+        ? `<div class="swatch-img-wrap"><img src="${baseUrl}/uploads/settings/materials/${m.imageFile}" alt="${m.name}" loading="lazy"></div>`
         : `<div class="swatch-placeholder"></div>`}
       <div class="swatch-text">
         <strong>${m.name}</strong>
