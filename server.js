@@ -134,6 +134,10 @@ async function kommoSetQuoteUrl(leadId, quoteUrl) {
   }]);
 }
 
+async function kommoSetSale(leadId, amount) {
+  return kommoFetch('PATCH', 'leads', [{ id: leadId, sale: Math.round(amount || 0) }]);
+}
+
 // ─── Quotes API ───────────────────────────────────────────────────────────────
 app.get('/api/quotes', (req, res) => {
   try { res.json(listQuotes()); }
@@ -262,8 +266,11 @@ app.post('/api/quotes/:id/publish', (req, res) => {
 
     // Notify Kommo if this quote is linked to a lead
     if (quote.kommoLeadId) {
+      const saleAmount = quote.total || 0;
+      const noteText = `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}\n💰 Sale price updated to ${saleAmount.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })}`;
       kommoSetQuoteUrl(quote.kommoLeadId, quoteUrl).catch(e => console.error('Kommo field error:', e.message));
-      kommoAddNote(quote.kommoLeadId, `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}`).catch(e => console.error('Kommo note error:', e.message));
+      kommoSetSale(quote.kommoLeadId, saleAmount).catch(e => console.error('Kommo sale error:', e.message));
+      kommoAddNote(quote.kommoLeadId, noteText).catch(e => console.error('Kommo note error:', e.message));
     }
 
     res.json({ success: true, pubId, quoteUrl });
