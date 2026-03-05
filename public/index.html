@@ -57,6 +57,24 @@
     .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
     .empty-state p { margin-top: 0.5rem; font-size: 0.95rem; }
 
+    /* Mobile: info shown inside ref cell instead of separate columns */
+    .mobile-sub { display: none; font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; font-weight: 400; }
+
+    @media (max-width: 640px) {
+      /* Hide Customer, Project, Status, Date columns */
+      .quotes-table th:nth-child(2), .quotes-table td:nth-child(2),
+      .quotes-table th:nth-child(3), .quotes-table td:nth-child(3),
+      .quotes-table th:nth-child(4), .quotes-table td:nth-child(4),
+      .quotes-table th:nth-child(5), .quotes-table td:nth-child(5) { display: none; }
+      /* Show compact subtitle in ref cell */
+      .mobile-sub { display: block; }
+      /* Hide secondary action buttons */
+      .btn-mobile-hide { display: none; }
+      /* Tighten cell padding */
+      .quotes-table td, .quotes-table th { padding: 0.65rem 0.6rem; }
+      .home-toolbar { align-items: center; }
+    }
+
     .confirm-overlay {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
       backdrop-filter: blur(2px);

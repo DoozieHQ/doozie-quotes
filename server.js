@@ -926,6 +926,9 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     .viewer-box:-webkit-full-screen { width: 100vw; height: 100vh; }
     .viewer-box:-moz-full-screen    { width: 100vw; height: 100vh; }
     .viewer-box:fullscreen          { width: 100vw; height: 100vh; }
+    /* iOS fallback fullscreen */
+    .viewer-box.viewer-fs-fallback  { position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 9000; border-radius: 0; }
+    .fs-exit-btn { position: absolute; top: 12px; right: 12px; z-index: 9001; background: rgba(0,0,0,0.65); color: #fff; border: none; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit; }
 
     /* ── Swatch grid ── */
     .swatches-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
@@ -1077,12 +1080,32 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     if (openEl) initViewer(openEl, ${JSON.stringify(openUrls)}, 'ov_${quote.id}_v${quote.version}_open');` : ''}
   });
 
-  // Fullscreen
+  // Fullscreen (with CSS fallback for iOS which blocks the fullscreen API)
   function goFullscreen(id) {
     const el = document.getElementById(id);
     if (!el) return;
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-    if (req) req.call(el);
+    if (req) {
+      req.call(el).catch(() => cssFallbackFullscreen(el));
+    } else {
+      cssFallbackFullscreen(el);
+    }
+  }
+  function cssFallbackFullscreen(el) {
+    if (el.classList.contains('viewer-fs-fallback')) return;
+    el.classList.add('viewer-fs-fallback');
+    const btn = document.createElement('button');
+    btn.className = 'fs-exit-btn';
+    btn.textContent = '✕ Exit Fullscreen';
+    btn.onclick = exitFallback;
+    el.appendChild(btn);
+    function exitFallback() {
+      el.classList.remove('viewer-fs-fallback');
+      btn.remove();
+      document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') exitFallback(); }
+    document.addEventListener('keydown', onKey);
   }
 
   // Lightbox

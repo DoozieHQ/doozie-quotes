@@ -13,11 +13,11 @@ function actionBtns(q, isLatest) {
     : `<a href="${q.quoteUrl || `/published/${q.id}-v${q.version}/`}" class="btn btn-sm btn-gold" target="_blank">&#127758; View Quote</a>`;
 
   const mgmt = isLatest
-    ? `<button class="btn btn-sm btn-secondary" onclick="newVersion('${q.filename}')">New Version</button>
-       <button class="btn btn-sm btn-secondary" onclick="duplicateQuote('${q.filename}')">Duplicate</button>`
+    ? `<button class="btn btn-sm btn-secondary btn-mobile-hide" onclick="newVersion('${q.filename}')">New Version</button>
+       <button class="btn btn-sm btn-secondary btn-mobile-hide" onclick="duplicateQuote('${q.filename}')">Duplicate</button>`
     : '';
 
-  const del = `<button class="btn btn-sm btn-danger" onclick="deleteQuote('${q.filename}','${q.id} v${q.version}')">Delete</button>`;
+  const del = `<button class="btn btn-sm btn-danger btn-mobile-hide" onclick="deleteQuote('${q.filename}','${q.id} v${q.version}')">Delete</button>`;
 
   return `<div class="actions">${view}${mgmt}${del}</div>`;
 }
@@ -35,8 +35,10 @@ function renderLatestRow(q, olderCount, gid) {
       <td class="quote-ref">
         <div class="ref-cell">
           ${expandBtn}
-          <span>${q.id}</span>
-          <span class="v-chip v-chip-${q.status}">v${q.version}</span>
+          <div>
+            <div><span>${q.id}</span> <span class="v-chip v-chip-${q.status}">v${q.version}</span></div>
+            <span class="mobile-sub">${[q.customerName, q.projectTitle].filter(Boolean).join(' · ') || ''}</span>
+          </div>
         </div>
       </td>
       <td>${q.customerName || '<span class="text-muted">—</span>'}</td>
@@ -54,8 +56,10 @@ function renderOlderRow(q, gid) {
       <td class="quote-ref">
         <div class="ref-cell">
           <span class="expand-spacer"></span>
-          <span>${q.id}</span>
-          <span class="v-chip v-chip-${q.status}">v${q.version}</span>
+          <div>
+            <div><span>${q.id}</span> <span class="v-chip v-chip-${q.status}">v${q.version}</span></div>
+            <span class="mobile-sub">${[q.customerName, q.projectTitle].filter(Boolean).join(' · ') || ''}</span>
+          </div>
         </div>
       </td>
       <td><span class="text-muted">${q.customerName || ''}</span></td>
