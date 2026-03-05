@@ -3,6 +3,7 @@ const multer    = require('multer');
 const fs        = require('fs');
 const path      = require('path');
 const basicAuth = require('express-basic-auth');
+const { execSync } = require('child_process');
 
 const app      = express();
 const PORT     = process.env.PORT || 3000;
@@ -282,6 +283,15 @@ app.post('/api/quotes/:id/publish', (req, res) => {
 
     res.json({ success: true, pubId, quoteUrl });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Disk info (actual filesystem capacity from df) ───────────────────────────
+app.get('/api/admin/diskinfo', (req, res) => {
+  try {
+    const df  = execSync('df -h /data').toString();
+    const df2 = execSync('df -B1 /data').toString(); // bytes for precision
+    res.json({ df, df2 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Storage diagnostics ──────────────────────────────────────────────────────
