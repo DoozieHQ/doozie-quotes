@@ -131,19 +131,13 @@ async function kommoAddNote(leadId, text) {
   return kommoFetch('POST', `leads/${leadId}/notes`, [{ note_type: 'common', params: { text } }]);
 }
 
-async function kommoSetQuoteUrl(leadId, quoteUrl) {
-  if (!KOMMO_URL_FIELD) return;
-  return kommoFetch('PATCH', 'leads', [{
-    id: parseInt(leadId),
-    custom_fields_values: [{ field_id: parseInt(KOMMO_URL_FIELD), values: [{ value: quoteUrl }] }]
-  }]);
-}
-
-async function kommoSetSale(leadId, amount) {
-  const saleValue = Math.round(amount || 0);
-  console.log(`Kommo setSale: leadId=${leadId} amount=${amount} sending sale=${saleValue}`);
-  const result = await kommoFetch('PATCH', 'leads', [{ id: parseInt(leadId), sale: saleValue }]);
-  console.log(`Kommo setSale result:`, JSON.stringify(result));
+async function kommoUpdateLead(leadId, quoteUrl, saleAmount) {
+  const patch = { id: parseInt(leadId), sale: Math.round(saleAmount || 0) };
+  if (KOMMO_URL_FIELD)
+    patch.custom_fields_values = [{ field_id: parseInt(KOMMO_URL_FIELD), values: [{ value: quoteUrl }] }];
+  console.log(`Kommo updateLead: leadId=${leadId} sale=${patch.sale}`);
+  const result = await kommoFetch('PATCH', 'leads', [patch]);
+  console.log(`Kommo updateLead result:`, JSON.stringify(result?._embedded?.leads?.[0]));
   return result;
 }
 
@@ -280,8 +274,7 @@ app.post('/api/quotes/:id/publish', (req, res) => {
     if (quote.kommoLeadId) {
       const saleAmount = quote.total || 0;
       const noteText = `🔗 Quote ${pubId} has been published and is ready to send:\n${quoteUrl}\n💰 Sale price updated to ${saleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      kommoSetQuoteUrl(quote.kommoLeadId, quoteUrl).catch(e => console.error('Kommo field error:', e.message));
-      kommoSetSale(quote.kommoLeadId, saleAmount).catch(e => console.error('Kommo sale error:', e.message));
+      kommoUpdateLead(quote.kommoLeadId, quoteUrl, saleAmount).catch(e => console.error('Kommo update error:', e.message));
       kommoAddNote(quote.kommoLeadId, noteText).catch(e => console.error('Kommo note error:', e.message));
     }
 
