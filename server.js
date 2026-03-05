@@ -360,6 +360,75 @@ app.post('/api/quotes/:id/upload/model/:modelType', (req, res) => {
   });
 });
 
+// ─── Chunked model upload (bypasses Railway proxy body-size limit) ────────────
+const chunkStore = new Map(); // uploadId -> { chunks, totalChunks, originalName, created }
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, info] of chunkStore) if (info.created < cutoff) chunkStore.delete(id);
+}, 5 * 60 * 1000);
+
+app.post('/api/quotes/:id/upload/model/:modelType/init', (req, res) => {
+  const { filename, totalChunks } = req.body;
+  const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  chunkStore.set(uploadId, { chunks: new Map(), totalChunks: parseInt(totalChunks), originalName: filename, created: Date.now() });
+  res.json({ uploadId });
+});
+
+app.post('/api/quotes/:id/upload/model/:modelType/chunk/:uploadId/:index',
+  express.raw({ type: 'application/octet-stream', limit: '6mb' }),
+  (req, res) => {
+    const info = chunkStore.get(req.params.uploadId);
+    if (!info) return res.status(404).json({ error: 'Upload session not found — please start over.' });
+    info.chunks.set(parseInt(req.params.index), req.body);
+    res.json({ ok: true });
+  }
+);
+
+app.post('/api/quotes/:id/upload/model/:modelType/finalize/:uploadId', (req, res) => {
+  const info = chunkStore.get(req.params.uploadId);
+  if (!info) return res.status(404).json({ error: 'Upload session not found — please start over.' });
+  try {
+    const ext  = path.extname(info.originalName).toLowerCase();
+    const type = req.params.modelType;
+    const dir  = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
+    try { ensureDir(dir); } catch(e) {
+      if (e.code === 'ENOSPC') return res.status(507).json({ error: 'Server storage is full.' });
+      throw e;
+    }
+    if (fs.existsSync(dir))
+      fs.readdirSync(dir).filter(f => f.startsWith(type + '.')).forEach(f => {
+        try { fs.unlinkSync(path.join(dir, f)); } catch {}
+      });
+    const filename = `${type}${ext}`;
+    const buffers  = [];
+    for (let i = 0; i < info.totalChunks; i++) {
+      const chunk = info.chunks.get(i);
+      if (!chunk) return res.status(400).json({ error: `Missing chunk ${i} — please try again.` });
+      buffers.push(chunk);
+    }
+    try { fs.writeFileSync(path.join(dir, filename), Buffer.concat(buffers)); }
+    catch(e) {
+      if (e.code === 'ENOSPC') return res.status(507).json({ error: 'Server storage is full.' });
+      throw e;
+    }
+    chunkStore.delete(req.params.uploadId);
+    const fp = path.join(DATA_DIR, 'quotes', req.params.id);
+    if (fs.existsSync(fp)) {
+      const q = JSON.parse(fs.readFileSync(fp, 'utf8'));
+      if (!q.models) q.models = {};
+      const existing = q.models[type];
+      const existingTextures = (typeof existing === 'object' && existing?.textures) ? existing.textures : [];
+      q.models[type] = { file: filename, textures: existingTextures };
+      q.updatedAt = new Date().toISOString();
+      fs.writeFileSync(fp, JSON.stringify(q, null, 2));
+    }
+    res.json({ success: true, filename, url: `/uploads/${req.params.id.replace('.json','')}/models/${filename}` });
+  } catch(err) {
+    chunkStore.delete(req.params.uploadId);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Upload texture / supporting files for a model
 app.post('/api/quotes/:id/upload/textures/:modelType', (req, res) => {
   const storage = multer.diskStorage({

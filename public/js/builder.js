@@ -212,21 +212,58 @@ function setupChangeListeners() {
 const MODEL_EXTS   = new Set(['.glb','.obj','.fbx','.stl','.3ds','.dae','.ply','.gltf']);
 const TEXTURE_EXTS = new Set(['.jpg','.jpeg','.png','.bmp','.tga','.gif','.mtl','.mat']);
 
-// XHR-based upload — more resilient than fetch for large files over HTTP/2
-function uploadXHR(url, formData, onProgress) {
+const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB per chunk
+
+// Chunked upload: splits large files to avoid Railway's proxy body-size limit
+async function uploadModelChunked(file, modelType, onProgress) {
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  const base = `/api/quotes/${quoteFilename}/upload/model/${modelType}`;
+
+  // 1 — init session
+  const initRes = await fetch(`${base}/init`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, totalChunks })
+  });
+  if (!initRes.ok) throw new Error('Failed to start upload');
+  const { uploadId } = await initRes.json();
+
+  // 2 — send chunks
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    const res = await fetch(`${base}/chunk/${uploadId}/${i}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: chunk
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Chunk ${i + 1}/${totalChunks} failed`);
+    }
+    onProgress((i + 1) / totalChunks);
+  }
+
+  // 3 — finalise
+  const finalRes = await fetch(`${base}/finalize/${uploadId}`, { method: 'POST' });
+  if (!finalRes.ok) {
+    const err = await finalRes.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to finalise upload');
+  }
+  return finalRes.json();
+}
+
+// XHR upload — used for texture files (small, no chunking needed)
+function uploadXHR(url, formData) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
-    xhr.timeout = 5 * 60 * 1000; // 5 minutes
-    if (onProgress && xhr.upload) {
-      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
-    }
-    xhr.onload = () => {
+    xhr.timeout = 2 * 60 * 1000;
+    xhr.onload  = () => {
       try { resolve(JSON.parse(xhr.responseText)); }
       catch { resolve({ success: false, error: `Server error (HTTP ${xhr.status})` }); }
     };
-    xhr.onerror   = () => reject(new Error('Network error — check your connection and try again.'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out — the file may be too large.'));
+    xhr.onerror   = () => reject(new Error('Network error uploading textures.'));
+    xhr.ontimeout = () => reject(new Error('Texture upload timed out.'));
     xhr.send(formData);
   });
 }
@@ -250,12 +287,9 @@ async function uploadAllFiles(input, type) {
   try {
     showToast('Uploading…');
 
-    // 1 — upload the model file via XHR with progress
-    const modelFd = new FormData();
-    modelFd.append('file', modelFiles[0]);
-    const modelData = await uploadXHR(
-      `/api/quotes/${quoteFilename}/upload/model/${type}`,
-      modelFd,
+    // 1 — upload model file in chunks
+    const modelData = await uploadModelChunked(
+      modelFiles[0], type,
       pct => showToast(`Uploading… ${Math.round(pct * 100)}%`)
     );
     if (!modelData.success) { showToast(modelData.error || 'Upload failed', 'error'); return; }
@@ -263,16 +297,13 @@ async function uploadAllFiles(input, type) {
     if (!currentQuote.models) currentQuote.models = {};
     currentQuote.models[type] = { file: modelData.filename, textures: [] };
 
-    // 2 — upload supporting / texture files if any
+    // 2 — upload texture / supporting files if any
     let textureFilenames = [];
     if (textureFiles.length) {
       showToast('Uploading textures…');
       const texFd = new FormData();
       for (const f of textureFiles) texFd.append('files', f);
-      const texData = await uploadXHR(
-        `/api/quotes/${quoteFilename}/upload/textures/${type}`,
-        texFd
-      );
+      const texData = await uploadXHR(`/api/quotes/${quoteFilename}/upload/textures/${type}`, texFd);
       if (texData.success) {
         textureFilenames = texData.filenames;
         currentQuote.models[type].textures = textureFilenames;
