@@ -212,19 +212,23 @@ function setupChangeListeners() {
 const MODEL_EXTS   = new Set(['.glb','.obj','.fbx','.stl','.3ds','.dae','.ply','.gltf']);
 const TEXTURE_EXTS = new Set(['.jpg','.jpeg','.png','.bmp','.tga','.gif','.mtl','.mat']);
 
-// Fetch with one automatic retry on network failure (handles ERR_HTTP2_PROTOCOL_ERROR)
-async function fetchWithRetry(url, options, retries = 1, delayMs = 1500) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await fetch(url, options);
-    } catch (err) {
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, delayMs));
-      } else {
-        throw err;
-      }
+// XHR-based upload — more resilient than fetch for large files over HTTP/2
+function uploadXHR(url, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.timeout = 5 * 60 * 1000; // 5 minutes
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
     }
-  }
+    xhr.onload = () => {
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch { resolve({ success: false, error: `Server error (HTTP ${xhr.status})` }); }
+    };
+    xhr.onerror   = () => reject(new Error('Network error — check your connection and try again.'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out — the file may be too large.'));
+    xhr.send(formData);
+  });
 }
 
 async function uploadAllFiles(input, type) {
@@ -246,29 +250,29 @@ async function uploadAllFiles(input, type) {
   try {
     showToast('Uploading…');
 
-    // 1 — upload the model file (retry once on network error)
+    // 1 — upload the model file via XHR with progress
     const modelFd = new FormData();
     modelFd.append('file', modelFiles[0]);
-    const modelRes  = await fetchWithRetry(
+    const modelData = await uploadXHR(
       `/api/quotes/${quoteFilename}/upload/model/${type}`,
-      { method: 'POST', body: modelFd }
+      modelFd,
+      pct => showToast(`Uploading… ${Math.round(pct * 100)}%`)
     );
-    const modelData = await modelRes.json();
     if (!modelData.success) { showToast(modelData.error || 'Upload failed', 'error'); return; }
 
     if (!currentQuote.models) currentQuote.models = {};
     currentQuote.models[type] = { file: modelData.filename, textures: [] };
 
-    // 2 — upload supporting / texture files if any (retry once on network error)
+    // 2 — upload supporting / texture files if any
     let textureFilenames = [];
     if (textureFiles.length) {
+      showToast('Uploading textures…');
       const texFd = new FormData();
       for (const f of textureFiles) texFd.append('files', f);
-      const texRes  = await fetchWithRetry(
+      const texData = await uploadXHR(
         `/api/quotes/${quoteFilename}/upload/textures/${type}`,
-        { method: 'POST', body: texFd }
+        texFd
       );
-      const texData = await texRes.json();
       if (texData.success) {
         textureFilenames = texData.filenames;
         currentQuote.models[type].textures = textureFilenames;
@@ -284,7 +288,7 @@ async function uploadAllFiles(input, type) {
     scheduleAutoSave();
     showToast('Uploaded');
   } catch(e) {
-    showToast('Upload failed — please try again.', 'error');
+    showToast(e.message || 'Upload failed — please try again.', 'error');
     console.error('uploadAllFiles error:', e);
   }
   input.value = '';

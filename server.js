@@ -313,19 +313,24 @@ app.post('/api/admin/cleanup-published', (req, res) => {
 function modelStorage() {
   return multer.diskStorage({
     destination(req, file, cb) {
-      const dir = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
-      ensureDir(dir); cb(null, dir);
+      try {
+        const dir = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
+        ensureDir(dir);
+        cb(null, dir);
+      } catch(err) { cb(err); }
     },
     filename(req, file, cb) {
-      const ext  = path.extname(file.originalname).toLowerCase();
-      const type = req.params.modelType; // 'closed' | 'open'
-      // Remove old file of same type if extension changes
-      const dir = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
-      if (fs.existsSync(dir))
-        fs.readdirSync(dir)
-          .filter(f => f.startsWith(type + '.'))
-          .forEach(f => fs.unlinkSync(path.join(dir, f)));
-      cb(null, `${type}${ext}`);
+      try {
+        const ext  = path.extname(file.originalname).toLowerCase();
+        const type = req.params.modelType; // 'closed' | 'open'
+        // Remove old file of same type if extension changes
+        const dir = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
+        if (fs.existsSync(dir))
+          fs.readdirSync(dir)
+            .filter(f => f.startsWith(type + '.'))
+            .forEach(f => { try { fs.unlinkSync(path.join(dir, f)); } catch {} });
+        cb(null, `${type}${ext}`);
+      } catch(err) { cb(err); }
     }
   });
 }
@@ -359,13 +364,19 @@ app.post('/api/quotes/:id/upload/model/:modelType', (req, res) => {
 app.post('/api/quotes/:id/upload/textures/:modelType', (req, res) => {
   const storage = multer.diskStorage({
     destination(req, file, cb) {
-      const dir = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
-      ensureDir(dir); cb(null, dir);
+      try {
+        const dir = path.join(DATA_DIR, 'uploads', req.params.id.replace('.json',''), 'models');
+        ensureDir(dir);
+        cb(null, dir);
+      } catch(err) { cb(err); }
     },
     filename(req, file, cb) { cb(null, file.originalname); }
   });
   multer({ storage }).array('files', 30)(req, res, err => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      if (err.code === 'ENOSPC') return res.status(507).json({ error: 'Server storage is full.' });
+      return res.status(500).json({ error: err.message });
+    }
     const filenames = (req.files || []).map(f => f.originalname);
     const fp = path.join(DATA_DIR, 'quotes', req.params.id);
     if (fs.existsSync(fp)) {
