@@ -284,6 +284,34 @@ app.post('/api/quotes/:id/publish', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── Storage diagnostics ──────────────────────────────────────────────────────
+app.get('/api/admin/storage', (req, res) => {
+  function dirSize(dir) {
+    if (!fs.existsSync(dir)) return { bytes: 0, files: [] };
+    let bytes = 0; const files = [];
+    function walk(d) {
+      fs.readdirSync(d).forEach(f => {
+        const fp = path.join(d, f);
+        try {
+          const st = fs.statSync(fp);
+          if (st.isDirectory()) { walk(fp); }
+          else { bytes += st.size; files.push({ path: fp.replace(DATA_DIR, ''), mb: (st.size/1024/1024).toFixed(2) }); }
+        } catch {}
+      });
+    }
+    walk(dir); return { bytes, mb: (bytes/1024/1024).toFixed(1), files };
+  }
+  const uploads   = dirSize(path.join(DATA_DIR, 'uploads'));
+  const published = dirSize(path.join(DATA_DIR, 'published'));
+  const quotes    = dirSize(path.join(DATA_DIR, 'quotes'));
+  const totalMb   = ((uploads.bytes + published.bytes + quotes.bytes) / 1024 / 1024).toFixed(1);
+  // Sort largest files first
+  const allFiles  = [...uploads.files, ...published.files, ...quotes.files]
+    .sort((a, b) => parseFloat(b.mb) - parseFloat(a.mb))
+    .slice(0, 30);
+  res.json({ totalMb, uploads: uploads.mb, published: published.mb, quotes: quotes.mb, largestFiles: allFiles });
+});
+
 // ─── Cleanup: remove duplicate model/image files from published directories ───
 app.post('/api/admin/cleanup-published', (req, res) => {
   const pubRoot = path.join(DATA_DIR, 'published');
