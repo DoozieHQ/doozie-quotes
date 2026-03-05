@@ -139,9 +139,6 @@ async function kommoUpdateLead(leadId, quoteUrl, saleAmount) {
   console.log(`Kommo updateLead: leadId=${id} price=${patch.price}`);
   const result = await kommoFetch('PATCH', `leads/${id}`, patch);
   console.log(`Kommo updateLead result:`, JSON.stringify(result));
-  // Verify what Kommo actually stored
-  const verify = await kommoFetch('GET', `leads/${id}`);
-  console.log(`Kommo verify price: leadId=${id} price=${verify?.price}`);
   return result;
 }
 
