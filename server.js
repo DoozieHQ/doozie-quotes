@@ -255,6 +255,8 @@ app.post('/api/quotes/:id/publish', async (req, res) => {
     const settings = loadSettings();
     quote.status      = 'published';
     quote.publishedAt = new Date().toISOString();
+    // Persist camera positions sent from the builder
+    if (req.body?.camera) quote.publishedCamera = req.body.camera;
 
     const pubId   = `${quote.id}-v${quote.version}`;
     const pubDir  = path.join(DATA_DIR, 'published', pubId);
@@ -1043,7 +1045,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     );
   }
   const _viewers = {};
-  function initViewer(el, urls, camKey) {
+  function initViewer(el, urls, publishedCam) {
     if (typeof OV === 'undefined') return;
     const ev = new OV.EmbeddedViewer(el, {
       backgroundColor: new OV.RGBAColor(248, 249, 250, 255),
@@ -1051,24 +1053,12 @@ function buildPublishedHTML(quote, settings, baseUrl) {
         try {
           const v   = ev.GetViewer();
           const nav = v && v.navigation;
-          const saved = localStorage.getItem(camKey);
-          if (saved && nav && nav.MoveCamera) {
-            nav.MoveCamera(objToCam(JSON.parse(saved)), 0);
+          // Use the camera position locked at publish time (same on all devices)
+          if (publishedCam && nav && nav.MoveCamera) {
+            nav.MoveCamera(objToCam(publishedCam), 0);
           } else if (v && v.FitToWindow) {
             v.FitToWindow(true);
           }
-          // Auto-save camera after user stops interacting
-          let t;
-          const save = () => {
-            try {
-              const c = nav && nav.GetCamera && nav.GetCamera();
-              if (c) localStorage.setItem(camKey, JSON.stringify(camToObj(c)));
-            } catch(e) {}
-          };
-          const debounce = () => { clearTimeout(t); t = setTimeout(save, 600); };
-          el.addEventListener('mouseup',  debounce);
-          el.addEventListener('touchend', debounce);
-          el.addEventListener('wheel',    debounce, { passive: true });
         } catch(e) {}
       }
     });
@@ -1092,10 +1082,10 @@ function buildPublishedHTML(quote, settings, baseUrl) {
   window.addEventListener('load', () => {
     ${closedUrls ? `
     const closedEl = document.getElementById('viewer-closed');
-    if (closedEl) initViewer(closedEl, ${JSON.stringify(closedUrls)}, 'ov_${quote.id}_v${quote.version}_closed');` : ''}
+    if (closedEl) initViewer(closedEl, ${JSON.stringify(closedUrls)}, ${JSON.stringify(quote.publishedCamera?.closed || null)});` : ''}
     ${openUrls ? `
     const openEl = document.getElementById('viewer-open');
-    if (openEl) initViewer(openEl, ${JSON.stringify(openUrls)}, 'ov_${quote.id}_v${quote.version}_open');` : ''}
+    if (openEl) initViewer(openEl, ${JSON.stringify(openUrls)}, ${JSON.stringify(quote.publishedCamera?.open || null)});` : ''}
   });
 
   // Fullscreen (with CSS fallback for iOS which blocks the fullscreen API)

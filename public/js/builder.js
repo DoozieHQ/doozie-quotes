@@ -655,7 +655,18 @@ async function publishQuote() {
   closeModal();
   await saveQuote();
   showToast('Publishing — please wait…');
-  const res  = await fetch(`/api/quotes/${quoteFilename}/publish`, { method: 'POST' });
+  // Capture current camera positions so the published view is locked to this orientation
+  const camera = {};
+  for (const type of ['closed', 'open']) {
+    const key   = `ov_${currentQuote.id}_v${currentQuote.version}_${type}`;
+    const saved = localStorage.getItem(key);
+    if (saved) { try { camera[type] = JSON.parse(saved); } catch(e) {} }
+  }
+  const res  = await fetch(`/api/quotes/${quoteFilename}/publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ camera })
+  });
   const data = await res.json();
   if (data.success) {
     currentQuote.status = 'published';
