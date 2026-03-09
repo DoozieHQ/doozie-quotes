@@ -889,7 +889,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
   <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
   <title>${quote.projectTitle || 'Quote'} — ${quote.id} v${quote.version}</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/online-3d-viewer@0.18.0/build/engine/o3dv.min.js"></script>
+  <script src="${baseUrl}/js/o3dv.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif; background: #f4f4f3; color: #383838; font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
