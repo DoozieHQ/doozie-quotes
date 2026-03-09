@@ -390,6 +390,32 @@ app.post('/api/admin/cleanup-published', (req, res) => {
   res.json({ removed, freedBytes: freed, freedMB: (freed / 1024 / 1024).toFixed(1) });
 });
 
+// ─── Regenerate all published HTML files from current template ────────────────
+app.post('/api/admin/regenerate-published', (req, res) => {
+  const quotesDir = path.join(DATA_DIR, 'quotes');
+  const pubRoot   = path.join(DATA_DIR, 'published');
+  const settings  = loadSettings();
+  const baseUrl   = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  const results   = { ok: [], failed: [] };
+
+  fs.readdirSync(quotesDir).filter(f => f.endsWith('.json')).forEach(f => {
+    try {
+      const quote = JSON.parse(fs.readFileSync(path.join(quotesDir, f), 'utf8'));
+      if (quote.status !== 'published' && quote.status !== 'accepted') return;
+      const pubId  = `${quote.id}-v${quote.version}`;
+      const pubDir = path.join(pubRoot, pubId);
+      ensureDir(pubDir);
+      const html = buildPublishedHTML(quote, settings, baseUrl);
+      fs.writeFileSync(path.join(pubDir, 'index.html'), html, 'utf8');
+      results.ok.push(pubId);
+    } catch (e) {
+      results.failed.push({ file: f, error: e.message });
+    }
+  });
+
+  res.json(results);
+});
+
 // ─── File Uploads ─────────────────────────────────────────────────────────────
 function modelStorage() {
   return multer.diskStorage({
