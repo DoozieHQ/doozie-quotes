@@ -10,10 +10,11 @@ const PORT     = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 
 // ─── Kommo config ─────────────────────────────────────────────────────────────
-const KOMMO_DOMAIN    = process.env.KOMMO_DOMAIN;        // doozie.kommo.com
-const KOMMO_TOKEN     = process.env.KOMMO_API_TOKEN;
-const KOMMO_STAGE_ID  = process.env.KOMMO_STAGE_ID || '100659523';
-const KOMMO_URL_FIELD = process.env.KOMMO_QUOTE_URL_FIELD_ID; // numeric field id
+const KOMMO_DOMAIN          = process.env.KOMMO_DOMAIN;        // doozie.kommo.com
+const KOMMO_TOKEN           = process.env.KOMMO_API_TOKEN;
+const KOMMO_STAGE_ID        = process.env.KOMMO_STAGE_ID || '100659523';
+const KOMMO_URL_FIELD       = process.env.KOMMO_QUOTE_URL_FIELD_ID; // numeric field id
+const KOMMO_CLOSED_WON_ID   = process.env.KOMMO_CLOSED_WON_STAGE_ID; // stage id for Closed-Won
 
 // ─── Basic Auth (admin only — /published/ + tracking + webhook stay public) ───
 if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
@@ -293,7 +294,7 @@ app.post('/api/quotes/:id/publish', async (req, res) => {
 });
 
 // ─── Accept quote (public — called from published page) ──────────────────────
-app.post('/api/accept/:pubId', (req, res) => {
+app.post('/api/accept/:pubId', async (req, res) => {
   const { pubId } = req.params;
   const fp = path.join(DATA_DIR, 'quotes', `${pubId}.json`);
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Quote not found.' });
@@ -308,7 +309,7 @@ app.post('/api/accept/:pubId', (req, res) => {
     const { name, email } = req.body;
     if (!name || !email) return res.status(400).json({ error: 'Name and email are required.' });
 
-    quote.status    = 'accepted';
+    quote.status     = 'accepted';
     quote.acceptance = { acceptedAt: new Date().toISOString(), name: name.trim(), email: email.trim() };
     quote.updatedAt  = new Date().toISOString();
     fs.writeFileSync(fp, JSON.stringify(quote, null, 2));
@@ -320,6 +321,25 @@ app.post('/api/accept/:pubId', (req, res) => {
     const pubDir   = path.join(DATA_DIR, 'published', pubId);
     ensureDir(pubDir);
     fs.writeFileSync(path.join(pubDir, 'index.html'), html, 'utf8');
+
+    // Notify Kommo if this quote is linked to a lead
+    if (quote.kommoLeadId) {
+      const acceptedAtFmt = new Date(quote.acceptance.acceptedAt).toLocaleString('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
+      });
+      const noteText = `✅ Quote ${pubId} was accepted by ${quote.acceptance.name} (${quote.acceptance.email}) on ${acceptedAtFmt}`;
+
+      // Build the lead patch: move to Closed-Won stage + keep price current
+      const leadPatch = { price: Math.round(quote.total || 0) };
+      if (KOMMO_CLOSED_WON_ID) leadPatch.status_id = parseInt(KOMMO_CLOSED_WON_ID);
+
+      const [updateResult, noteResult] = await Promise.allSettled([
+        kommoFetch('PATCH', `leads/${parseInt(quote.kommoLeadId)}`, leadPatch),
+        kommoAddNote(quote.kommoLeadId, noteText)
+      ]);
+      if (updateResult.status === 'rejected') console.error('Kommo accept update error:', updateResult.reason?.message);
+      if (noteResult.status   === 'rejected') console.error('Kommo accept note error:',   noteResult.reason?.message);
+    }
 
     res.json({ success: true, acceptance: quote.acceptance });
   } catch (e) { res.status(500).json({ error: e.message }); }
