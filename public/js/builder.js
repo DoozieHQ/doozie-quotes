@@ -182,9 +182,9 @@ function updateHeader() {
   const badge = document.getElementById('header-status');
   badge.textContent  = q.status;
   badge.className    = `badge badge-${q.status}`;
-  if (q.status === 'published') {
+  if (q.status === 'published' || q.status === 'accepted') {
     document.querySelector('.btn-gold').disabled = true;
-    document.querySelector('.btn-gold').textContent = 'Published';
+    document.querySelector('.btn-gold').textContent = q.status === 'accepted' ? 'Accepted' : 'Published';
   }
 }
 

@@ -21,6 +21,7 @@ if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
     if (req.path.startsWith('/published/') ||
         req.path.startsWith('/uploads/')    ||
         req.path.startsWith('/api/track/')  ||
+        req.path.startsWith('/api/accept/') ||
         req.path === '/api/kommo/webhook') return next();
     return basicAuth({
       users: { [process.env.ADMIN_USER]: process.env.ADMIN_PASS },
@@ -82,7 +83,8 @@ function listQuotes() {
           projectTitle: q.projectTitle || '',
           createdAt: q.createdAt,
           total: q.total || 0,
-          quoteUrl: q.quoteUrl || null
+          quoteUrl: q.quoteUrl || null,
+          acceptedAt: q.acceptance?.acceptedAt || null
         };
       } catch { return null; }
     })
@@ -198,7 +200,7 @@ app.put('/api/quotes/:id', (req, res) => {
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
   try {
     const existing = JSON.parse(fs.readFileSync(fp, 'utf8'));
-    if (existing.status === 'published')
+    if (existing.status === 'published' || existing.status === 'accepted')
       return res.status(400).json({ error: 'Quote is published. Create a new version to edit.' });
     const updated = { ...existing, ...req.body, updatedAt: new Date().toISOString() };
     const totals = calcTotals(updated.lineItems, updated.vatRate, updated.vatEnabled);
@@ -287,6 +289,39 @@ app.post('/api/quotes/:id/publish', async (req, res) => {
     }
 
     res.json({ success: true, pubId, quoteUrl });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Accept quote (public — called from published page) ──────────────────────
+app.post('/api/accept/:pubId', (req, res) => {
+  const { pubId } = req.params;
+  const fp = path.join(DATA_DIR, 'quotes', `${pubId}.json`);
+  if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Quote not found.' });
+  try {
+    const quote = JSON.parse(fs.readFileSync(fp, 'utf8'));
+    if (quote.status === 'accepted') {
+      return res.status(409).json({ error: 'already_accepted', acceptance: quote.acceptance });
+    }
+    if (quote.status !== 'published') {
+      return res.status(400).json({ error: 'This quote is not currently available for acceptance.' });
+    }
+    const { name, email } = req.body;
+    if (!name || !email) return res.status(400).json({ error: 'Name and email are required.' });
+
+    quote.status    = 'accepted';
+    quote.acceptance = { acceptedAt: new Date().toISOString(), name: name.trim(), email: email.trim() };
+    quote.updatedAt  = new Date().toISOString();
+    fs.writeFileSync(fp, JSON.stringify(quote, null, 2));
+
+    // Regenerate published HTML so the static page reflects the accepted state
+    const settings = loadSettings();
+    const baseUrl  = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const html     = buildPublishedHTML(quote, settings, baseUrl);
+    const pubDir   = path.join(DATA_DIR, 'published', pubId);
+    ensureDir(pubDir);
+    fs.writeFileSync(path.join(pubDir, 'index.html'), html, 'utf8');
+
+    res.json({ success: true, acceptance: quote.acceptance });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -768,8 +803,10 @@ function sanitiseHTML(html) {
 }
 
 function buildPublishedHTML(quote, settings, baseUrl) {
-  const pubId    = `${quote.id}-v${quote.version}`;
-  const trackUrl = `${baseUrl}/api/track/${pubId}`;
+  const pubId      = `${quote.id}-v${quote.version}`;
+  const trackUrl   = `${baseUrl}/api/track/${pubId}`;
+  const acceptUrl  = `${baseUrl}/api/accept/${pubId}`;
+  const alreadyAccepted = quote.status === 'accepted' && !!quote.acceptance;
   const logoHTML = settings.companyLogo
     ? `<img src="${baseUrl}/uploads/settings/${settings.companyLogo}" alt="${settings.companyName}" class="company-logo">`
     : `<div class="company-name-text">${settings.companyName || ''}</div>`;
@@ -829,6 +866,118 @@ function buildPublishedHTML(quote, settings, baseUrl) {
 
   const vatRow = quote.vatEnabled
     ? `<tr class="totals-row vat-row"><td>VAT (${quote.vatRate}%)</td><td>${fmt(quote.vatAmount)}</td></tr>` : '';
+
+  // ── Accept / confirmation sections ──────────────────────────────────────────
+  const modalItemsHTML = (quote.lineItems || []).map(item => {
+    if (item.sectionName !== undefined) {
+      return `<tr class="modal-section-hdr"><td colspan="2">${item.sectionName || ''}</td></tr>`;
+    }
+    return `<tr><td>${item.description || ''}</td><td class="modal-item-price">${fmt(item.price)}</td></tr>`;
+  }).join('');
+  const modalVatRow = quote.vatEnabled
+    ? `<tr class="modal-totals-row"><td style="color:#888">VAT (${quote.vatRate}%)</td><td class="modal-item-price" style="color:#888">${fmt(quote.vatAmount)}</td></tr>` : '';
+
+  const summaryTableHTML = `
+    <table class="modal-summary-table">
+      <thead><tr><th>Description</th><th class="modal-item-price">Amount</th></tr></thead>
+      <tbody>${modalItemsHTML}</tbody>
+      <tfoot>
+        <tr class="modal-totals-row"><td style="color:#aaa;font-size:0.85em">Net Total</td><td class="modal-item-price" style="color:#aaa;font-size:0.85em">${fmt(quote.netTotal)}</td></tr>
+        ${modalVatRow}
+        <tr class="modal-grand-total"><td>Total</td><td class="modal-item-price">${fmt(quote.total)}</td></tr>
+      </tfoot>
+    </table>`;
+
+  // Formatted acceptance timestamp for static (already-accepted) render
+  const acceptedAtFmt = alreadyAccepted
+    ? new Date(quote.acceptance.acceptedAt).toLocaleString('en-GB', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit', timeZoneName:'short' })
+    : '';
+
+  const acceptCtaSection = alreadyAccepted
+    ? `<section class="q-section accepted-status-section" id="sec-accept">
+        <div class="accepted-icon">&#10003;</div>
+        <div class="accepted-status-body">
+          <h2 class="section-title" style="margin-bottom:4px">Quote Accepted</h2>
+          <p class="accepted-meta">Accepted by <strong>${quote.acceptance.name}</strong> (${quote.acceptance.email})<br>on ${acceptedAtFmt}</p>
+          <button class="accept-btn secondary" onclick="showConfirmationScreen()">View &amp; Print Confirmation</button>
+        </div>
+       </section>`
+    : `<section class="q-section accept-cta-section" id="sec-accept">
+        <div class="accept-cta-body">
+          <div>
+            <h2 class="section-title" style="margin-bottom:4px">Ready to proceed?</h2>
+            <p class="accept-cta-sub">Accept this quote to confirm your order. You will receive a printable confirmation.</p>
+          </div>
+          <button class="accept-btn" onclick="openAcceptModal()">Accept Quote</button>
+        </div>
+       </section>`;
+
+  // Pre-populated confirmation content (used both for the static accepted state
+  // and for the live-acceptance overlay — JS fills in name/email/time for the latter)
+  const confirmationContent = `
+    <div class="conf-logo">${settings.companyLogo
+      ? `<img src="${baseUrl}/uploads/settings/${settings.companyLogo}" alt="${settings.companyName}" style="height:44px;width:auto;object-fit:contain">`
+      : `<span style="font-weight:700;font-size:1.1rem">${settings.companyName || ''}</span>`}</div>
+    <div class="conf-check">&#10003;</div>
+    <h1 class="conf-heading">Quote Accepted</h1>
+    <p class="conf-ref">${quote.id} &middot; Version ${quote.version} &middot; ${quote.projectTitle || ''}</p>
+    <div class="conf-parties">
+      <div class="conf-party">
+        <span class="conf-party-label">Prepared by</span>
+        <strong>${settings.companyName || ''}</strong>
+      </div>
+      <div class="conf-party">
+        <span class="conf-party-label">Accepted by</span>
+        <strong id="conf-name">${alreadyAccepted ? quote.acceptance.name : ''}</strong>
+        <span id="conf-email" style="font-size:0.9em;color:#666">${alreadyAccepted ? quote.acceptance.email : ''}</span>
+      </div>
+      <div class="conf-party">
+        <span class="conf-party-label">Date &amp; Time</span>
+        <strong id="conf-time">${acceptedAtFmt}</strong>
+      </div>
+    </div>
+    <h3 class="conf-summary-title">What Was Agreed</h3>
+    ${summaryTableHTML}
+    <p class="conf-tc-note">By accepting this quote, the customer confirmed they had read and accepted
+      <a href="https://www.doozie.co/terms" target="_blank">Doozie Ltd's Terms &amp; Conditions</a>.</p>
+    <p class="conf-sig-label">Electronic Signature</p>
+    <p class="conf-sig" id="conf-sig">${alreadyAccepted ? quote.acceptance.name : ''}</p>`;
+
+  const acceptModalHTML = alreadyAccepted ? '' : `
+  <!-- Accept Quote Modal -->
+  <div id="accept-modal" class="accept-overlay" onclick="if(event.target===this)closeAcceptModal()" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="accept-modal-card">
+      <button class="accept-modal-close" onclick="closeAcceptModal()" aria-label="Close">&times;</button>
+      <h2 id="modal-title" class="accept-modal-title">Accept Quote</h2>
+      <div class="accept-modal-meta">
+        <span><strong>Project:</strong> ${quote.projectTitle || ''}</span>
+        <span><strong>Prepared for:</strong> ${quote.customer?.name || ''}</span>
+      </div>
+      ${summaryTableHTML}
+      <form id="accept-form" class="accept-form" onsubmit="return false">
+        <label for="acc-email">Your email address <span class="req">*</span></label>
+        <input id="acc-email" type="email" autocomplete="email" required placeholder="you@example.com">
+        <label for="acc-name">Full name — electronic signature <span class="req">*</span></label>
+        <input id="acc-name" type="text" autocomplete="name" required placeholder="Type your full name to sign">
+        <label class="accept-tc-label">
+          <input id="acc-tc" type="checkbox" required>
+          <span>I have read and accept <a href="https://www.doozie.co/terms" target="_blank" rel="noopener">Doozie Ltd's Terms &amp; Conditions</a> <span class="req">*</span></span>
+        </label>
+        <div id="accept-error" class="accept-error" style="display:none"></div>
+        <div class="accept-modal-btns">
+          <button type="button" class="accept-btn secondary" onclick="closeAcceptModal()">Cancel</button>
+          <button type="submit" class="accept-btn" id="accept-submit-btn" onclick="submitAcceptance()">Accept Quote</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+
+  // Embed data for JS (only what's needed for the live-acceptance confirmation)
+  const embeddedData = JSON.stringify({
+    acceptUrl,
+    alreadyAccepted,
+    acceptance: quote.acceptance || null
+  }).replace(/<\/script>/gi, '<\\/script>');
 
   const overviewSection = quote.overview
     ? `<section class="q-section" id="sec-overview">
@@ -983,6 +1132,74 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     .lightbox-caption span { font-size: 0.88rem; opacity: 0.72; }
     .lightbox-close { position: absolute; top: 1.5rem; right: 1.5rem; color: #fff; font-size: 2.5rem; font-weight: 300; cursor: pointer; line-height: 1; background: none; border: none; }
 
+    /* ── Accept CTA section ── */
+    .accept-cta-section { }
+    .accept-cta-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .accept-cta-sub { font-size: 0.9rem; color: #666; margin-top: 4px; }
+    .accept-btn { display: inline-flex; align-items: center; gap: 6px; background: #ffc700; color: #000; border: none; padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.95rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
+    .accept-btn:hover { background: #e6b400; }
+    .accept-btn:active { transform: scale(0.98); }
+    .accept-btn.secondary { background: #fff; color: #383838; border: 1px solid #e5e5e5; }
+    .accept-btn.secondary:hover { background: #f4f4f3; }
+    .accepted-status-section { }
+    .accepted-status-section .section-title { }
+    .accepted-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #22c55e; color: #fff; font-size: 1.4rem; font-weight: 700; margin-bottom: 12px; }
+    .accepted-status-body { }
+    .accepted-meta { font-size: 0.92rem; color: #555; margin: 6px 0 14px; line-height: 1.6; }
+
+    /* ── Accept modal ── */
+    .accept-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(3px); z-index: 8000; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+    .accept-overlay.open { display: flex; }
+    .accept-modal-card { background: #fff; border-radius: 16px; max-width: 580px; width: 100%; padding: 32px; position: relative; max-height: 90vh; overflow-y: auto; animation: modalIn .2s ease-out; }
+    @keyframes modalIn { from { opacity:0; transform:scale(0.97) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    .accept-modal-close { position: absolute; top: 16px; right: 20px; background: none; border: none; font-size: 1.8rem; font-weight: 300; cursor: pointer; color: #888; line-height: 1; }
+    .accept-modal-close:hover { color: #000; }
+    .accept-modal-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; }
+    .accept-modal-meta { display: flex; flex-direction: column; gap: 2px; font-size: 0.88rem; color: #555; margin-bottom: 16px; border-bottom: 1px solid #f0f0ee; padding-bottom: 14px; }
+
+    /* ── Modal summary table ── */
+    .modal-summary-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 20px; }
+    .modal-summary-table thead th { text-align: left; padding: 0.5rem 0.7rem; background: #2d2d2d; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: #fff; }
+    .modal-summary-table thead th:last-child { text-align: right; }
+    .modal-summary-table tbody tr:nth-child(even) { background: #fafafa; }
+    .modal-summary-table tbody td { padding: 0.5rem 0.7rem; border-bottom: 1px solid #f0f0ee; }
+    .modal-section-hdr td { background: #fff !important; border-top: 1px solid #ececec; border-left: 3px solid #ffc700; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.07em; padding: 0.5rem 0.7rem; }
+    .modal-item-price { text-align: right; font-variant-numeric: tabular-nums; }
+    .modal-totals-row td { padding: 0.4rem 0.7rem; }
+    .modal-totals-row td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .modal-grand-total td { font-weight: 700; font-size: 1.05rem; border-top: 2px solid #000; padding: 0.6rem 0.7rem; }
+    .modal-grand-total td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* ── Accept form ── */
+    .accept-form { display: flex; flex-direction: column; gap: 6px; }
+    .accept-form label { font-size: 0.85rem; font-weight: 600; color: #383838; margin-top: 8px; }
+    .accept-form input[type="email"], .accept-form input[type="text"] { padding: 0.6rem 0.8rem; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 0.95rem; font-family: inherit; color: #000; outline: none; transition: border-color 0.15s; }
+    .accept-form input:focus { border-color: #ffc700; box-shadow: 0 0 0 3px rgba(255,199,0,0.18); }
+    .accept-tc-label { display: flex; align-items: flex-start; gap: 10px; font-weight: 400 !important; font-size: 0.88rem !important; cursor: pointer; margin-top: 12px; }
+    .accept-tc-label input[type="checkbox"] { margin-top: 2px; width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; accent-color: #ffc700; }
+    .accept-tc-label a { color: #000; text-decoration: underline; }
+    .req { color: #e53e3e; }
+    .accept-error { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; border-radius: 8px; padding: 0.6rem 0.8rem; font-size: 0.88rem; margin-top: 8px; }
+    .accept-modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+    /* ── Confirmation overlay ── */
+    .conf-overlay { position: fixed; inset: 0; background: #f4f4f3; z-index: 9500; overflow-y: auto; padding: 32px 16px 60px; }
+    .conf-card { max-width: 680px; margin: 0 auto; background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; padding: 40px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .conf-logo { margin-bottom: 24px; }
+    .conf-check { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: #22c55e; color: #fff; font-size: 1.8rem; font-weight: 700; margin-bottom: 12px; }
+    .conf-heading { font-size: 1.8rem; font-weight: 400; color: #000; margin-bottom: 4px; }
+    .conf-ref { font-size: 0.9rem; color: #888; margin-bottom: 28px; }
+    .conf-parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; background: #f9f9f8; border: 1px solid #ececec; border-radius: 10px; padding: 18px 20px; margin-bottom: 28px; }
+    .conf-party { display: flex; flex-direction: column; gap: 3px; }
+    .conf-party-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #999; font-weight: 600; }
+    .conf-party strong { font-size: 0.95rem; color: #000; }
+    .conf-summary-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #000; margin-bottom: 10px; }
+    .conf-tc-note { font-size: 0.85rem; color: #666; margin-top: 18px; line-height: 1.6; }
+    .conf-tc-note a { color: #000; text-decoration: underline; }
+    .conf-sig-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #999; font-weight: 600; margin-top: 24px; margin-bottom: 4px; }
+    .conf-sig { font-size: 1.4rem; font-style: italic; color: #000; border-bottom: 2px solid #000; padding-bottom: 6px; display: inline-block; min-width: 200px; }
+    .conf-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
+
     /* ── Print ── */
     @media print {
       body { background: #fff; }
@@ -991,11 +1208,19 @@ function buildPublishedHTML(quote, settings, baseUrl) {
       .fs-btn { display: none; }
       .viewer-box { height: 300px; }
       .q-section { box-shadow: none; page-break-inside: avoid; }
+      /* When printing, hide the main quote page and show only the confirmation */
+      .conf-overlay { position: static !important; background: transparent !important; padding: 0 !important; }
+      .conf-overlay[style*="display:none"] { display: block !important; }
+      .conf-card { box-shadow: none !important; border: none !important; padding: 20px !important; }
+      .no-print, .accept-overlay, .lightbox, .q-header, .q-content, .conf-actions { display: none !important; }
+      .conf-check, .accepted-icon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
     @media (max-width: 600px) {
       .q-title { font-size: 1.5rem; }
       .swatches-grid { grid-template-columns: repeat(2, 1fr); }
       .q-content { padding: 20px 16px; }
+      .accept-cta-body { flex-direction: column; align-items: flex-start; }
+      .accept-modal-card { padding: 24px 20px; }
     }
   </style>
 </head>
@@ -1029,7 +1254,21 @@ function buildPublishedHTML(quote, settings, baseUrl) {
   ${materialsSection}
   ${pricingSection}
   ${termsSection}
+  ${acceptCtaSection}
 </div>
+
+<!-- Confirmation screen overlay -->
+<div id="confirmation-screen" class="conf-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Quote Acceptance Confirmation">
+  <div class="conf-card" id="conf-card">
+    ${confirmationContent}
+    <div class="conf-actions no-print">
+      <button class="accept-btn" onclick="window.print()">&#128438; Print / Save as PDF</button>
+      <button class="accept-btn secondary" onclick="hideConfirmationScreen()">&#8592; Return to Quote</button>
+    </div>
+  </div>
+</div>
+
+${acceptModalHTML}
 
 <script>
   function camToObj(c) {
@@ -1131,7 +1370,101 @@ function buildPublishedHTML(quote, settings, baseUrl) {
   function closeLightbox() {
     document.getElementById('lightbox').classList.remove('open');
   }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeAcceptModal(); } });
+
+  // ── Accept Quote ────────────────────────────────────────────────────────────
+  const _AQ = ${embeddedData};
+
+  function openAcceptModal() {
+    const m = document.getElementById('accept-modal');
+    if (m) { m.classList.add('open'); document.body.style.overflow = 'hidden'; }
+  }
+  function closeAcceptModal() {
+    const m = document.getElementById('accept-modal');
+    if (m) { m.classList.remove('open'); document.body.style.overflow = ''; }
+    const err = document.getElementById('accept-error');
+    if (err) { err.style.display = 'none'; err.textContent = ''; }
+    const btn = document.getElementById('accept-submit-btn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Accept Quote'; }
+  }
+  function fmtDateTime(iso) {
+    return new Date(iso).toLocaleString('en-GB', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit', timeZoneName:'short' });
+  }
+  async function submitAcceptance() {
+    const emailEl = document.getElementById('acc-email');
+    const nameEl  = document.getElementById('acc-name');
+    const tcEl    = document.getElementById('acc-tc');
+    const errEl   = document.getElementById('accept-error');
+    const btn     = document.getElementById('accept-submit-btn');
+
+    const email = (emailEl?.value || '').trim();
+    const name  = (nameEl?.value  || '').trim();
+
+    if (!email || !name) {
+      errEl.textContent = 'Please fill in all required fields.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (!tcEl?.checked) {
+      errEl.textContent = 'Please accept the Terms and Conditions to proceed.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    errEl.style.display = 'none';
+
+    try {
+      const resp = await fetch(_AQ.acceptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email })
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        if (resp.status === 409) {
+          // Already accepted — show confirmation with stored data
+          closeAcceptModal();
+          populateConfirmation(data.acceptance);
+          showConfirmationScreen();
+          return;
+        }
+        throw new Error(data.error || 'Submission failed.');
+      }
+      closeAcceptModal();
+      populateConfirmation(data.acceptance);
+      showConfirmationScreen();
+    } catch (e) {
+      errEl.textContent = e.message || 'An error occurred. Please try again.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Accept Quote';
+    }
+  }
+  function populateConfirmation(acceptance) {
+    const n = document.getElementById('conf-name');
+    const e = document.getElementById('conf-email');
+    const t = document.getElementById('conf-time');
+    const s = document.getElementById('conf-sig');
+    if (n) n.textContent = acceptance.name;
+    if (e) e.textContent = acceptance.email;
+    if (t) t.textContent = fmtDateTime(acceptance.acceptedAt);
+    if (s) s.textContent = acceptance.name;
+  }
+  function showConfirmationScreen() {
+    const s = document.getElementById('confirmation-screen');
+    if (s) { s.style.display = 'block'; document.body.style.overflow = 'hidden'; s.scrollTop = 0; window.scrollTo(0,0); }
+  }
+  function hideConfirmationScreen() {
+    const s = document.getElementById('confirmation-screen');
+    if (s) { s.style.display = 'none'; document.body.style.overflow = ''; }
+  }
+  // If the quote was already accepted when the page loaded, populate confirmation
+  // so the "View Confirmation" button works without a round-trip
+  if (_AQ.alreadyAccepted && _AQ.acceptance) {
+    populateConfirmation(_AQ.acceptance);
+  }
 </script>
 <img src="${trackUrl}" width="1" height="1" style="position:absolute;opacity:0;pointer-events:none" alt="">
 </body>

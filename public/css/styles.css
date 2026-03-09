@@ -148,6 +148,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .badge-draft     { background: #fff8e1; color: #92400e; border: 1px solid #fde68a; }
 .badge-published { background: #f0fff4; color: #276749; border: 1px solid #9ae6b4; }
+.badge-accepted  { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; font-weight: 700; }
 
 /* ── Save Status ──────────────────────────────────────────────────────────── */
 .save-status { font-size: 0.8rem; color: rgba(0,0,0,0.45); }
