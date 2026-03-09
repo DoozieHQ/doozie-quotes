@@ -331,17 +331,38 @@ app.post('/api/accept/:pubId', async (req, res) => {
 
       // Build the lead patch: move to Closed-Won stage + keep price current
       const leadPatch = { price: Math.round(quote.total || 0) };
-      if (KOMMO_CLOSED_WON_ID) leadPatch.status_id = parseInt(KOMMO_CLOSED_WON_ID);
+      if (KOMMO_CLOSED_WON_ID) {
+        leadPatch.status_id = parseInt(KOMMO_CLOSED_WON_ID);
+      } else {
+        console.warn('Kommo accept: KOMMO_CLOSED_WON_STAGE_ID not set — skipping stage move');
+      }
+      console.log(`Kommo accept: patching lead ${quote.kommoLeadId} with`, JSON.stringify(leadPatch));
 
       const [updateResult, noteResult] = await Promise.allSettled([
         kommoFetch('PATCH', `leads/${parseInt(quote.kommoLeadId)}`, leadPatch),
         kommoAddNote(quote.kommoLeadId, noteText)
       ]);
+      console.log('Kommo accept update result:', JSON.stringify(updateResult.value ?? updateResult.reason?.message));
       if (updateResult.status === 'rejected') console.error('Kommo accept update error:', updateResult.reason?.message);
       if (noteResult.status   === 'rejected') console.error('Kommo accept note error:',   noteResult.reason?.message);
     }
 
     res.json({ success: true, acceptance: quote.acceptance });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Kommo pipeline inspector (admin) ────────────────────────────────────────
+app.get('/api/admin/kommo/pipelines', async (req, res) => {
+  if (!KOMMO_DOMAIN || !KOMMO_TOKEN) return res.status(503).json({ error: 'Kommo not configured.' });
+  try {
+    const data = await kommoFetch('GET', 'leads/pipelines');
+    if (!data) return res.status(502).json({ error: 'No response from Kommo.' });
+    const pipelines = (data._embedded?.pipelines || []).map(p => ({
+      pipeline_id: p.id,
+      pipeline_name: p.name,
+      stages: (p._embedded?.statuses || []).map(s => ({ stage_id: s.id, stage_name: s.name }))
+    }));
+    res.json(pipelines);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
