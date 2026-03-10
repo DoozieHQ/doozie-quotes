@@ -1138,7 +1138,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     .viewer-wrap { border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
     .viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; background: #f4f4f3; border-bottom: 1px solid #e5e5e5; }
     .viewer-label { font-size: 0.85rem; font-weight: 600; color: #383838; }
-    .fs-btn { font-size: 0.8rem; cursor: pointer; background: #000; color: #fff; border: none; padding: 0.3rem 0.75rem; border-radius: 6px; font-family: inherit; transition: background 0.15s; }
+    .fs-btn { font-size: 0.8rem; cursor: pointer; background: #000; color: #fff; border: none; padding: 0.3rem 0.75rem; border-radius: 6px; font-family: inherit; font-weight: 300; transition: background 0.15s; }
     .fs-btn:hover { background: #383838; }
     .viewer-box { width: 100%; height: 450px; display: block; background: #f4f4f3; }
     .viewer-box:-webkit-full-screen { width: 100vw; height: 100vh; }
@@ -1148,7 +1148,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
        iOS Safari bug where overflow:hidden+border-radius clips fixed children */
     .viewer-wrap.viewer-fs-fallback { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9000; border-radius: 0; }
     .viewer-wrap.viewer-fs-fallback .viewer-box { height: 100% !important; }
-    .fs-exit-btn { position: absolute; top: 12px; right: 12px; z-index: 9001; background: rgba(0,0,0,0.65); color: #fff; border: none; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit; }
+    .fs-exit-btn { position: absolute; top: 12px; right: 12px; z-index: 9001; background: rgba(0,0,0,0.65); color: #fff; border: none; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-family: inherit; font-weight: 300; }
 
     /* ── Swatch grid ── */
     .swatches-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
@@ -1203,7 +1203,7 @@ function buildPublishedHTML(quote, settings, baseUrl) {
     .accept-cta-section { }
     .accept-cta-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     .accept-cta-sub { font-size: 0.9rem; color: #666; margin-top: 4px; }
-    .accept-btn { display: inline-flex; align-items: center; gap: 6px; background: #ffc700; color: #000; border: none; padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.95rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
+    .accept-btn { display: inline-flex; align-items: center; gap: 6px; background: #ffc700; color: #000; border: none; padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.95rem; font-weight: 300; font-family: inherit; cursor: pointer; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
     .accept-btn:hover { background: #e6b400; }
     .accept-btn:active { transform: scale(0.98); }
     .accept-btn.secondary { background: #fff; color: #383838; border: 1px solid #e5e5e5; }

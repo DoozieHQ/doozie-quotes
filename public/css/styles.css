@@ -63,7 +63,7 @@ strong, b { font-weight: 600; }
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; gap: 0.4rem;
-  padding: 0.5rem 1.1rem; border-radius: 8px; font-weight: 500;
+  padding: 0.5rem 1.1rem; border-radius: 8px; font-weight: 300;
   border: 1.5px solid transparent; transition: all 0.15s;
   white-space: nowrap;
 }
@@ -71,7 +71,7 @@ strong, b { font-weight: 600; }
 .btn-primary:hover   { background: var(--dark); }
 .btn-secondary { background: #fff; color: var(--dark); border-color: var(--border); }
 .btn-secondary:hover { background: var(--light); border-color: var(--dark); }
-.btn-gold      { background: var(--yellow); color: var(--black); border-color: var(--yellow); font-weight: 600; }
+.btn-gold      { background: var(--yellow); color: var(--black); border-color: var(--yellow); font-weight: 300; }
 .btn-gold:hover      { background: #e6b400; border-color: #e6b400; }
 .btn-danger    { background: #fff; color: var(--danger); border-color: var(--border); }
 .btn-danger:hover    { background: #fff5f5; border-color: var(--danger); }
